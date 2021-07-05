@@ -1,41 +1,41 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Structure {
     #[serde(rename = "DataVersion")]
-    data_version: i32,
-    size: Vec<i32>,
+    pub data_version: i32,
+    pub size: Vec<i32>,
     // size: [i32; 3],
-    palette: Vec<PaletteBlock>,
-    blocks: Vec<StructureBlock>,
-    entities: Vec<StructureEntity>,
+    pub palette: Vec<PaletteBlock>,
+    pub blocks: Vec<StructureBlock>,
+    pub entities: Vec<StructureEntity>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub(crate) struct PaletteBlock {
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PaletteBlock {
     #[serde(rename = "Name")]
-    name: String,
+    pub name: String,
     #[serde(rename = "Properties", default)]
-    properties: BTreeMap<String, String>,
+    pub properties: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub(crate) struct StructureBlock {
-    state: i32,
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct StructureBlock {
+    pub state: i32,
     // state: usize,
-    pos: Vec<i32>,
+    pub pos: Vec<i32>,
     // pos: [i32; 3],
-    nbt: Option<nbt::Value>,
+    pub nbt: Option<nbt::Value>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub(crate) struct StructureEntity {
-    pos: Vec<f64>,
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct StructureEntity {
+    pub pos: Vec<f64>,
     // pos: [f64; 3],
-    block_pos: Vec<i32>,
+    pub block_pos: Vec<i32>,
     // block_pos: [i32; 3],
-    nbt: nbt::Value,
+    pub nbt: nbt::Value,
 }
 
 #[cfg(test)]

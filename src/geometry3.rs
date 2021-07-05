@@ -1,7 +1,11 @@
 use std::{
     cmp::{max, min},
+    convert::TryFrom,
+    fmt::{self, Display},
     ops::{Add, Index, IndexMut, Neg, Not, Rem, Sub},
 };
+
+use num_traits::Signed;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Coordinate3<T>(pub T, pub T, pub T);
@@ -60,7 +64,7 @@ impl<T: Add> Add for Coordinate3<T> {
     type Output = Coordinate3<T::Output>;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Coordinate3(self.0.add(rhs.0), self.1.add(rhs.1), self.2.add(rhs.2))
+        self.zip(rhs, Add::add)
     }
 }
 
@@ -68,7 +72,7 @@ impl<T: Sub> Sub for Coordinate3<T> {
     type Output = Coordinate3<T::Output>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Coordinate3(self.0.sub(rhs.0), self.1.sub(rhs.1), self.2.sub(rhs.2))
+        self.zip(rhs, Sub::sub)
     }
 }
 
@@ -76,7 +80,13 @@ impl<T: Rem> Rem for Coordinate3<T> {
     type Output = Coordinate3<T::Output>;
 
     fn rem(self, rhs: Self) -> Self::Output {
-        Coordinate3(self.0.rem(rhs.0), self.1.rem(rhs.1), self.2.rem(rhs.2))
+        self.zip(rhs, Rem::rem)
+    }
+}
+
+impl<T> From<Coordinate3<T>> for Vec<T> {
+    fn from(c: Coordinate3<T>) -> Self {
+        vec![c.0, c.1, c.2]
     }
 }
 
@@ -129,6 +139,60 @@ impl Direction3 {
             1
         } else {
             -1
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Direction3::East => "east",
+            Direction3::West => "west",
+            Direction3::Up => "up",
+            Direction3::Down => "down",
+            Direction3::South => "south",
+            Direction3::North => "north",
+        }
+    }
+}
+
+impl Display for Direction3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl<S: Signed> TryFrom<Coordinate3<S>> for Direction3 {
+    type Error = ();
+
+    fn try_from(value: Coordinate3<S>) -> Result<Self, Self::Error> {
+        let Coordinate3(s1, s2, s3) = value;
+        let count = [
+            s1.is_positive(),
+            s1.is_negative(),
+            s2.is_positive(),
+            s2.is_negative(),
+            s3.is_positive(),
+            s3.is_negative(),
+        ]
+        .iter()
+        .filter(|&&it| it)
+        .count();
+
+        if count != 1 {
+            Err(())
+        } else if s1.is_positive() {
+            Ok(Direction3::East)
+        } else if s1.is_negative() {
+            Ok(Direction3::West)
+        } else if s2.is_positive() {
+            Ok(Direction3::Up)
+        } else if s2.is_negative() {
+            Ok(Direction3::Down)
+        } else if s3.is_positive() {
+            Ok(Direction3::South)
+        } else if s3.is_negative() {
+            Ok(Direction3::North)
+        } else {
+            Err(())
         }
     }
 }
@@ -220,7 +284,7 @@ impl Orientation3 {
     /// which is the equivalent of rotating it around an axis going diagonally through the origin.
     ///
     /// Some orientations are their own reverse, bot others are not. You can undo by orienting to
-    /// the [opposite](Orientation3::opposite) orientation.
+    /// the [inverse](Orientation3::inverse) orientation.
     // TODO consume to avoid clone
     pub fn orient<T: Clone + Neg<Output = T>>(&self, coordinate: Coordinate3<T>) -> Coordinate3<T> {
         let mut result = coordinate.clone();
