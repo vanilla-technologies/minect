@@ -54,7 +54,7 @@ pub fn space_filling_curve(
                 if orientation.direction1().negative() {
                     i1 *= -1;
                 }
-                let c = orientation.opposite().orient(Coordinate3(i1, i2, i3));
+                let c = orientation.orient(Coordinate3(i1, i2, i3));
                 let coordinate = c + min;
                 result.push(coordinate);
             }

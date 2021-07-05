@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min},
-    ops::{Add, Index, Neg, Rem, Sub},
+    ops::{Add, Index, IndexMut, Neg, Rem, Sub},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,6 +26,16 @@ impl<T> Index<Axis3> for Coordinate3<T> {
             Axis3::X => &self.0,
             Axis3::Y => &self.1,
             Axis3::Z => &self.2,
+        }
+    }
+}
+
+impl<T> IndexMut<Axis3> for Coordinate3<T> {
+    fn index_mut(&mut self, index: Axis3) -> &mut Self::Output {
+        match index {
+            Axis3::X => &mut self.0,
+            Axis3::Y => &mut self.1,
+            Axis3::Z => &mut self.2,
         }
     }
 }
@@ -114,6 +124,27 @@ impl Direction3 {
 /// [primary](Orientation3::direction1()), a [secondary](Orientation3::direction2())
 /// and a [tertiary](Orientation3::direction3()) [direction](Direction3) which are all
 /// on different [axes](Axis3).
+///
+/// An [Orientation3] can also be represented by a left multiplied rotation matrix where the first
+/// row represents the primary direction, the second row the secondary and so on. A value of 1
+/// indicates a positive direction and a value of -1 indicates a negative direction. Each column
+/// contains exactly one non zero value, as all directions are on different axes.
+///
+/// For example [Orientation3::XYZ] is represented by the identity matrix:
+///
+/// |       | 1 | 2 | 3 |
+/// |-------|---|---|---|
+/// | **x** | 1 | 0 | 0 |
+/// | **y** | 0 | 1 | 0 |
+/// | **z** | 0 | 0 | 1 |
+///
+/// And [Orientation3::Zyx] is represented by this matrix:
+///
+/// |       | 1 |  2 |  3 |
+/// |-------|---|----|----|
+/// | **x** | 0 |  0 | -1 |
+/// | **y** | 0 | -1 |  0 |
+/// | **z** | 1 |  0 |  0 |
 #[allow(non_camel_case_types)]
 pub enum Orientation3 {
     XYZ,
@@ -169,29 +200,28 @@ pub enum Orientation3 {
 impl Orientation3 {
     /// Orient a [Coordinate3] according to this [Orientation3].
     ///
-    /// For example orienting the coordinate (1, 2, 3) to [Orientation3::YZX] results in (2, 3, 1),
+    /// For example orienting the coordinate (1, 2, 3) to [Orientation3::YZX] results in (3, 1, 2),
     /// which is the equivalent of rotating it around an axis going diagonally through the origin.
     ///
     /// Some orientations are their own reverse, bot others are not. You can undo by orienting to
     /// the [opposite](Orientation3::opposite) orientation.
     // TODO consume to avoid clone
     pub fn orient<T: Clone + Neg<Output = T>>(&self, coordinate: Coordinate3<T>) -> Coordinate3<T> {
-        let direction1 = self.direction1();
-        let mut t1 = coordinate[direction1.axis()].clone();
-        if direction1.negative() {
+        let mut result = coordinate.clone();
+        let Coordinate3(mut t1, mut t2, mut t3) = coordinate;
+        if self.direction1().negative() {
             t1 = -t1;
         }
-        let direction2 = self.direction2();
-        let mut t2 = coordinate[direction2.axis()].clone();
-        if direction2.negative() {
+        if self.direction2().negative() {
             t2 = -t2;
         }
-        let direction3 = self.direction3();
-        let mut t3 = coordinate[direction3.axis()].clone();
-        if direction3.negative() {
+        if self.direction3().negative() {
             t3 = -t3;
         }
-        Coordinate3(t1, t2, t3)
+        result[self.direction1().axis()] = t1;
+        result[self.direction2().axis()] = t2;
+        result[self.direction3().axis()] = t3;
+        result
     }
 
     pub fn opposite(&self) -> Orientation3 {
