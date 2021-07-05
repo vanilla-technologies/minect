@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min},
-    ops::{Add, Index, IndexMut, Neg, Rem, Sub},
+    ops::{Add, Index, IndexMut, Neg, Not, Rem, Sub},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -224,7 +224,9 @@ impl Orientation3 {
         result
     }
 
-    pub fn opposite(&self) -> Orientation3 {
+    /// Find the inverse [Orientation3]. This is equivalent to inverting the rotation matrix, which
+    /// is the same as transposing it.
+    pub fn inverse(&self) -> Orientation3 {
         match self {
             Orientation3::XYZ => Orientation3::XYZ,
             Orientation3::XYz => Orientation3::XYz,
@@ -440,20 +442,28 @@ impl Orientation3 {
     }
 }
 
+impl Not for Orientation3 {
+    type Output = Orientation3;
+
+    fn not(self) -> Self::Output {
+        self.inverse()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::_3d::{Coordinate3, Orientation3};
+    use crate::geometry3::{Coordinate3, Orientation3};
     use strum::IntoEnumIterator;
 
     #[test]
-    fn test_opposite() {
+    fn test_inverse() {
         // given:
         let coordinate = Coordinate3(1, 2, 3);
 
         for orientation in Orientation3::iter() {
             // when:
-            let opposite = orientation.opposite();
-            let actual = opposite.orient(orientation.orient(coordinate));
+            let inverse = orientation.inverse();
+            let actual = inverse.orient(orientation.orient(coordinate));
 
             // then:
             assert_eq!(actual, coordinate, "orientation={:?}", orientation);

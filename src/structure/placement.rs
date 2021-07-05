@@ -1,4 +1,4 @@
-use crate::_3d::{Coordinate3, Orientation3};
+use crate::geometry3::{Coordinate3, Orientation3};
 
 /// Return a [Vec] of [coordinates](Coordinate3) that completely fill the cubiod between `min` and
 /// `max` as a space filling curve with the specified [orientation][Orientation3].

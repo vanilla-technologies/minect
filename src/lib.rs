@@ -1,4 +1,4 @@
-pub mod _3d;
+pub mod geometry3;
 pub mod structure;
 
 use structure::StructureBuilder;
