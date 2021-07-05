@@ -203,7 +203,7 @@ impl<S: Signed> TryFrom<Coordinate3<S>> for Direction3 {
 /// dimensions via rotation and mirroring. It consists of a
 /// [primary](Orientation3::direction1()), a [secondary](Orientation3::direction2())
 /// and a [tertiary](Orientation3::direction3()) [direction](Direction3) which are all
-/// on different [axes](Axis3).
+/// on different [axes](Axis3). Lower case axis names represent a negative direction.
 ///
 /// An [Orientation3] can also be represented by a left multiplied rotation matrix where the first
 /// row represents the primary direction, the second row the secondary and so on. A value of 1
@@ -278,10 +278,13 @@ pub enum Orientation3 {
 }
 
 impl Orientation3 {
-    /// Orient a [Coordinate3] according to this [Orientation3].
+    /// Orient a [Coordinate3] according to this [Orientation3]. This can be seen as renaming the
+    /// axis of the first component to the [primary](Orientation3::direction1), the second to the
+    /// secondary and so on. Lower case axis names represent a negative [Direction3], so there the
+    /// component is inverted too.
     ///
-    /// For example orienting the coordinate (1, 2, 3) to [Orientation3::YZX] results in (3, 1, 2),
-    /// which is the equivalent of rotating it around an axis going diagonally through the origin.
+    /// For example orienting the coordinate (x: 1, y: 2, z: 3) to [Orientation3::YzX] results in
+    /// (y: 1, z: -2, x: 3) or short (3, 1, -2).
     ///
     /// Some orientations are their own reverse, bot others are not. You can undo by orienting to
     /// the [inverse](Orientation3::inverse) orientation.
