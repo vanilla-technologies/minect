@@ -1,7 +1,7 @@
 use crate::geometry3::{Coordinate3, Orientation3};
 
-/// Return a [Vec] of [coordinates](Coordinate3) that completely fill the cubiod between `min` and
-/// `max` as a space filling curve with the specified [orientation][Orientation3].
+/// Return a [Vec] of [coordinates](Coordinate3) that completely fill the cubiod spanned by `min`
+/// and `max` as a space filling curve with the specified [orientation][Orientation3].
 ///
 /// Furthermore the [Vec] has the following properties:
 /// * The distance between two successive coordinates is always 1.
@@ -9,58 +9,54 @@ use crate::geometry3::{Coordinate3, Orientation3};
 /// * The first and the last coordinates are corners of the cuboid (not neccessarily `min` or
 ///   `max` depending on `orientation`).
 ///
-/// `min` has to be strictly smaller than `max`, but both can be positive or negative. If you have
-/// two arbitrary [coordinates](Coordinate3) you can find `min` with [Coordinate3::min] and `max`
-/// with [Coordinate3::max]
+/// `min` has to be smaller or equal to `max` on all axes, but both can be positive or negative. If
+/// you have two arbitrary [coordinates](Coordinate3) you can find `min` with [Coordinate3::min] and
+/// `max` with [Coordinate3::max]
 pub fn space_filling_curve(
     min: Coordinate3<i32>,
     max: Coordinate3<i32>,
     orientation: Orientation3,
 ) -> Vec<Coordinate3<i32>> {
-    let delta = max - min;
+    // The offset needed to move negative values to be positive so the result is between min and max
+    let mut in_place_offset = max - min;
+    if orientation.direction1().is_positive() {
+        in_place_offset[orientation.direction1().axis()] = 0;
+    }
+    if orientation.direction2().is_positive() {
+        in_place_offset[orientation.direction2().axis()] = 0;
+    }
+    if orientation.direction3().is_positive() {
+        in_place_offset[orientation.direction3().axis()] = 0;
+    }
+    let offset = in_place_offset + min;
 
-    let axis3 = orientation.direction3().axis();
-    let delta3 = delta[axis3];
+    let size = max - min + Coordinate3(1, 1, 1); // +1 because min and max are inclusive
+    let size = orientation.inverse().orient(size);
+    let size = size.map(i32::abs); // Size is always positive
+    snake_curve(size)
+        .into_iter()
+        .map(|c| orientation.orient(c) + offset)
+        .collect()
+}
 
-    let axis2 = orientation.direction2().axis();
-    let delta2 = delta[axis2];
-
-    let axis1 = orientation.direction1().axis();
-    let delta1 = delta[axis1];
-
-    let backwards3 = orientation.direction3().negative();
-    let mut backwards2 = orientation.direction2().negative();
-    let mut backwards1 = orientation.direction1().negative();
-
+fn snake_curve(size: Coordinate3<i32>) -> Vec<Coordinate3<i32>> {
     let mut result = Vec::new();
-    for mut i3 in 0..=delta3 {
-        if backwards3 {
-            i3 = delta3 - i3;
-        }
-        if orientation.direction3().negative() {
-            i3 *= -1;
-        }
-        for mut i2 in 0..=delta2 {
-            if backwards2 {
-                i2 = delta2 - i2;
+    let mut y_backwards = false;
+    let mut x_backwards = false;
+    for z in 0..size.2 {
+        for mut y in 0..size.1 {
+            if y_backwards {
+                y = size.1 - 1 - y;
             }
-            if orientation.direction2().negative() {
-                i2 *= -1;
-            }
-            for mut i1 in 0..=delta1 {
-                if backwards1 {
-                    i1 = delta1 - i1;
+            for mut x in 0..size.0 {
+                if x_backwards {
+                    x = size.0 - 1 - x;
                 }
-                if orientation.direction1().negative() {
-                    i1 *= -1;
-                }
-                let c = orientation.orient(Coordinate3(i1, i2, i3));
-                let coordinate = c + min;
-                result.push(coordinate);
+                result.push(Coordinate3(x, y, z));
             }
-            backwards1 = !backwards1;
+            x_backwards = !x_backwards;
         }
-        backwards2 = !backwards2;
+        y_backwards = !y_backwards;
     }
     result
 }
@@ -155,6 +151,36 @@ mod tests {
                 Coordinate3(2, 4, 6),
                 Coordinate3(2, 5, 6),
                 Coordinate3(2, 5, 5),
+            ]
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_space_filling_curve_Zxy() {
+        // given:
+        let min = Coordinate3(2, 3, 5);
+        let max = Coordinate3(3, 5, 6);
+
+        // when:
+        let actual = space_filling_curve(min, max, Orientation3::Zxy);
+
+        // then:
+        assert_eq!(
+            actual,
+            vec![
+                Coordinate3(3, 5, 5),
+                Coordinate3(3, 5, 6),
+                Coordinate3(2, 5, 6),
+                Coordinate3(2, 5, 5),
+                Coordinate3(2, 4, 5),
+                Coordinate3(2, 4, 6),
+                Coordinate3(3, 4, 6),
+                Coordinate3(3, 4, 5),
+                Coordinate3(3, 3, 5),
+                Coordinate3(3, 3, 6),
+                Coordinate3(2, 3, 6),
+                Coordinate3(2, 3, 5),
             ]
         );
     }

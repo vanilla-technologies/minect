@@ -6,15 +6,31 @@ use std::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Coordinate3<T>(pub T, pub T, pub T);
 
+impl<T> Coordinate3<T> {
+    pub fn map<F, R>(self, f: F) -> Coordinate3<R>
+    where
+        F: Fn(T) -> R,
+    {
+        Coordinate3(f(self.0), f(self.1), f(self.2))
+    }
+
+    pub fn zip<F, U, R>(self, other: Coordinate3<U>, f: F) -> Coordinate3<R>
+    where
+        F: Fn(T, U) -> R,
+    {
+        Coordinate3(f(self.0, other.0), f(self.1, other.1), f(self.2, other.2))
+    }
+}
+
 impl<T: Ord> Coordinate3<T> {
     /// Finds the [Coordinate3] of the minimum corner in the cuboid spanned by `a` and `b`.
     pub fn min(a: Coordinate3<T>, b: Coordinate3<T>) -> Coordinate3<T> {
-        Coordinate3(min(a.0, b.0), min(a.1, b.1), min(a.2, b.2))
+        a.zip(b, min)
     }
 
     /// Finds the [Coordinate3] of the maximum corner in the cuboid spanned by `a` and `b`.
     pub fn max(a: Coordinate3<T>, b: Coordinate3<T>) -> Coordinate3<T> {
-        Coordinate3(max(a.0, b.0), max(a.1, b.1), max(a.2, b.2))
+        a.zip(b, max)
     }
 }
 
@@ -93,7 +109,7 @@ impl Direction3 {
         }
     }
 
-    pub fn positive(&self) -> bool {
+    pub fn is_positive(&self) -> bool {
         match self {
             Direction3::East => true,
             Direction3::West => false,
@@ -104,12 +120,12 @@ impl Direction3 {
         }
     }
 
-    pub fn negative(&self) -> bool {
-        !self.positive()
+    pub fn is_negative(&self) -> bool {
+        !self.is_positive()
     }
 
-    pub fn sign(&self) -> i8 {
-        if self.positive() {
+    pub fn signum(&self) -> i8 {
+        if self.is_positive() {
             1
         } else {
             -1
@@ -209,13 +225,13 @@ impl Orientation3 {
     pub fn orient<T: Clone + Neg<Output = T>>(&self, coordinate: Coordinate3<T>) -> Coordinate3<T> {
         let mut result = coordinate.clone();
         let Coordinate3(mut t1, mut t2, mut t3) = coordinate;
-        if self.direction1().negative() {
+        if self.direction1().is_negative() {
             t1 = -t1;
         }
-        if self.direction2().negative() {
+        if self.direction2().is_negative() {
             t2 = -t2;
         }
-        if self.direction3().negative() {
+        if self.direction3().is_negative() {
             t3 = -t3;
         }
         result[self.direction1().axis()] = t1;
