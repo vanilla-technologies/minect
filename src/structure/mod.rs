@@ -1,5 +1,4 @@
-pub mod nbt;
-pub mod placement;
+mod nbt;
 
 use crate::{
     geometry3::Coordinate3,
@@ -22,22 +21,24 @@ impl StructureBuilder {
         }
     }
 
-    pub fn add_block<B: Block>(&mut self, block: B) {
-        let palette_block = PaletteBlock {
-            name: block.name(),
-            properties: block.properties(),
-        };
+    pub fn add_block(&mut self, block: Block) {
+        let Block {
+            name,
+            pos,
+            properties,
+            nbt,
+        } = block;
+        let palette_block = PaletteBlock { name, properties };
         let index = if let Some(index) = self.palette.iter().position(|it| *it == palette_block) {
             index
         } else {
             self.palette.push(palette_block);
             self.palette.len() - 1
         };
-        let pos = block.pos();
         let block = StructureBlock {
             state: index as i32,
             pos: pos.into(),
-            nbt: block.nbt(),
+            nbt,
         };
         self.blocks.push(block);
         self.size = Coordinate3::max(self.size, pos + Coordinate3(1, 1, 1));
@@ -54,16 +55,9 @@ impl StructureBuilder {
     }
 }
 
-pub trait Block {
-    fn name(&self) -> String;
-
-    fn pos(&self) -> Coordinate3<i32>;
-
-    fn properties(&self) -> BTreeMap<String, String> {
-        BTreeMap::new()
-    }
-
-    fn nbt(&self) -> Option<::nbt::Value> {
-        None
-    }
+pub struct Block {
+    pub name: String,
+    pub pos: Coordinate3<i32>,
+    pub properties: BTreeMap<String, String>,
+    pub nbt: Option<::nbt::Value>,
 }

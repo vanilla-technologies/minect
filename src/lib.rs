@@ -1,45 +1,95 @@
-pub mod geometry3;
-pub mod logfile_watcher;
-pub mod structure;
+mod geometry3;
+mod logfile_watcher;
+mod placement;
+mod structure;
+mod utils;
 
 use fs3::FileExt;
-use geometry3::Coordinate3;
+use geometry3::Direction3;
+use placement::{place_commands, CommandBlock};
 use std::{
     collections::{BTreeMap, HashMap},
-    error::Error,
     fs::{create_dir_all, File, OpenOptions},
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
+    iter::FromIterator,
     path::{Path, PathBuf},
 };
-use structure::{
-    placement::{self, place_commands, CommandBlock},
-    Block, StructureBuilder,
-};
+use structure::{Block, StructureBuilder};
+use utils::io_invalid_data;
+
+use crate::geometry3::Coordinate3;
 
 pub struct InjectionConnection {
     structures_dir: PathBuf,
+    namespace: String,
+    identifier: String,
 }
 
 impl InjectionConnection {
     pub fn new<P: AsRef<Path>>(identifier: &str, world_dir: P) -> InjectionConnection {
+        let namespace = "inject".to_string();
         InjectionConnection {
             structures_dir: world_dir
                 .as_ref()
-                .join("generated/inject/structures")
+                .join("generated")
+                .join(&namespace)
+                .join("structures")
                 .join(identifier),
+            namespace,
+            identifier: identifier.to_string(),
         }
     }
 
     pub fn inject_group(&self, group: Vec<Command>) -> io::Result<()> {
+        create_dir_all(&self.structures_dir)?;
+        let id = self.get_structure_id()?;
+
         let mut builder = StructureBuilder::new();
-        let blocks = place_commands(group);
-        for block in blocks {
+        builder.add_block(new_structure_block(
+            format!(
+                "{}:{}/{}",
+                self.namespace,
+                self.identifier,
+                id.wrapping_add(1)
+            ),
+            "LOAD".to_string(),
+            Coordinate3(0, 0, 0),
+        ));
+        builder.add_block(new_command_block(
+            CommandBlockKind::Repeat,
+            "setblock ~ ~-1 ~ redstone_block".to_string(),
+            false,
+            true,
+            Direction3::Up,
+            Coordinate3(0, 2, 0),
+        ));
+        builder.add_block(new_command_block(
+            CommandBlockKind::Chain,
+            "setblock ~ ~-2 ~ stone".to_string(),
+            false,
+            true,
+            Direction3::Up,
+            Coordinate3(0, 3, 0),
+        ));
+        builder.add_block(new_command_block(
+            CommandBlockKind::Chain,
+            "reload".to_string(),
+            false,
+            true,
+            Direction3::Down,
+            Coordinate3(0, 4, 0),
+        ));
+        let mut first = true;
+        for mut block in place_commands(group).into_iter().map(Block::from) {
+            if first {
+                block.name = "minecraft:command_block".to_string();
+                first = false;
+            }
+            block.pos += Coordinate3(1, 1, 1);
             builder.add_block(block);
         }
         let structure = builder.build();
 
-        create_dir_all(&self.structures_dir)?;
-        let id = self.get_structure_id()?;
         let structure_file = self.structures_dir.join(format!("{}.nbt", id));
 
         let file = File::create(structure_file)?;
@@ -66,7 +116,7 @@ impl InjectionConnection {
         } else {
             content
                 .parse::<u64>()
-                .map_err(invalid_data)?
+                .map_err(io_invalid_data)?
                 .wrapping_add(1)
         };
 
@@ -77,11 +127,59 @@ impl InjectionConnection {
     }
 }
 
-fn invalid_data<E>(error: E) -> io::Error
-where
-    E: Into<Box<dyn Error + Send + Sync>>,
-{
-    io::Error::new(io::ErrorKind::InvalidData, error)
+fn new_structure_block(name: String, mode: String, pos: Coordinate3<i32>) -> Block {
+    Block {
+        name: "minecraft:structure_block".to_string(),
+        pos,
+        properties: BTreeMap::new(),
+        nbt: Some(nbt::Value::Compound(HashMap::from_iter([
+            ("name".to_string(), nbt::Value::String(name)),
+            ("mode".to_string(), nbt::Value::String(mode)),
+        ]))),
+    }
+}
+
+fn new_command_block(
+    kind: CommandBlockKind,
+    command: String,
+    conditional: bool,
+    always_active: bool,
+    facing: Direction3,
+    pos: Coordinate3<i32>,
+) -> Block {
+    let mut properties = BTreeMap::from_iter([("facing".to_string(), facing.to_string())]);
+    if conditional {
+        properties.insert("conditional".to_string(), "true".to_string());
+    }
+
+    let mut nbt = HashMap::from_iter([("Command".to_string(), nbt::Value::String(command))]);
+    if always_active {
+        nbt.insert("auto".to_string(), nbt::Value::Byte(1));
+    }
+
+    Block {
+        name: kind.block_name().to_string(),
+        pos,
+        properties,
+        nbt: Some(nbt::Value::Compound(nbt)),
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CommandBlockKind {
+    Impulse,
+    Chain,
+    Repeat,
+}
+
+impl CommandBlockKind {
+    fn block_name(&self) -> &'static str {
+        match self {
+            CommandBlockKind::Impulse => "minecraft:command_block",
+            CommandBlockKind::Chain => "minecraft:chain_command_block",
+            CommandBlockKind::Repeat => "minecraft:repeating_command_block",
+        }
+    }
 }
 
 pub struct Command {
@@ -95,36 +193,22 @@ impl placement::Command for Command {
     }
 }
 
-impl Block for CommandBlock<Command> {
-    fn name(&self) -> String {
-        "minecraft:command_block".to_string()
-    }
-
-    fn pos(&self) -> Coordinate3<i32> {
-        self.coordinate
-    }
-
-    fn properties(&self) -> BTreeMap<String, String> {
-        let mut properties = BTreeMap::new();
-        if let Some(command) = &self.command {
-            if command.conditional {
-                properties.insert("conditional".to_string(), "true".to_string());
-            }
-        }
-        properties.insert("facing".to_string(), self.direction.to_string());
-        properties
-    }
-
-    fn nbt(&self) -> Option<nbt::Value> {
-        let mut nbt = HashMap::new();
-        if let Some(command) = &self.command {
-            nbt.insert(
-                "Command".to_string(),
-                nbt::Value::String(command.command.clone()),
-            );
-        }
-        Some(nbt::Value::Compound(nbt))
-        // {auto: 0b, powered: 0b, LastExecution: 2341237L, SuccessCount: 1, UpdateLastExecution: 1b, conditionMet: 1b, CustomName: '{"text":"@"}', Command: "function debug:example/main/start", x: -6, y: 56, z: 14, id: "minecraft:command_block", LastOutput: '{"extra":[{"translate":"commands.function.success.single","with":["2","debug:example/main/start"]}],"text":"[16:38:42] "}', TrackOutput: 1b}
+impl From<CommandBlock<Command>> for Block {
+    fn from(cmd_block: CommandBlock<Command>) -> Self {
+        let conditional = cmd_block
+            .command
+            .as_ref()
+            .map(|it| it.conditional)
+            .unwrap_or_default();
+        let command = cmd_block.command.map(|it| it.command).unwrap_or_default();
+        new_command_block(
+            CommandBlockKind::Chain,
+            command,
+            conditional,
+            true,
+            cmd_block.direction,
+            cmd_block.coordinate,
+        )
     }
 }
 
@@ -141,20 +225,12 @@ mod tests {
         );
         let group = vec![
             Command {
-                command: "execute".to_string(),
+                command: "say foo".to_string(),
                 conditional: false,
             },
             Command {
-                command: "bli".to_string(),
-                conditional: true,
-            },
-            Command {
-                command: "bla".to_string(),
+                command: "say bar".to_string(),
                 conditional: false,
-            },
-            Command {
-                command: "blub".to_string(),
-                conditional: true,
             },
         ];
 

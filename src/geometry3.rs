@@ -2,7 +2,7 @@ use std::{
     cmp::{max, min},
     convert::TryFrom,
     fmt::{self, Display},
-    ops::{Add, Index, IndexMut, Neg, Not, Rem, Sub},
+    ops::{Add, AddAssign, Index, IndexMut, Neg, Not, Rem, Sub},
 };
 
 use num_traits::Signed;
@@ -65,6 +65,12 @@ impl<T: Add> Add for Coordinate3<T> {
 
     fn add(self, rhs: Self) -> Self::Output {
         self.zip(rhs, Add::add)
+    }
+}
+
+impl<T: Clone + Add<Output = T>> AddAssign for Coordinate3<T> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.clone().add(rhs);
     }
 }
 
