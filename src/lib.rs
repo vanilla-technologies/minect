@@ -1,4 +1,5 @@
 pub mod geometry3;
+pub mod logfile_watcher;
 pub mod structure;
 
 use geometry3::Coordinate3;
