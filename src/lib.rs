@@ -1,32 +1,40 @@
 mod geometry3;
-mod logfile_watcher;
+mod log_observer;
 mod placement;
 mod structure;
 mod utils;
 
 use fs3::FileExt;
 use geometry3::Direction3;
+use log_observer::{LogEvent, LogObserver};
 use placement::{place_commands, CommandBlock};
 use std::{
-    collections::{BTreeMap, HashMap},
     fs::{create_dir_all, File, OpenOptions},
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
-    iter::FromIterator,
     path::{Path, PathBuf},
 };
 use structure::{Block, StructureBuilder};
+use tokio::sync::mpsc::UnboundedReceiver;
 use utils::io_invalid_data;
 
-use crate::geometry3::Coordinate3;
+use crate::{
+    geometry3::Coordinate3,
+    structure::{new_command_block, new_structure_block, CommandBlockKind},
+};
 
 pub struct InjectionConnection {
     structures_dir: PathBuf,
     namespace: String,
     identifier: String,
+    log_observer: LogObserver,
 }
 
 impl InjectionConnection {
-    pub fn new<P: AsRef<Path>>(identifier: &str, world_dir: P) -> InjectionConnection {
+    pub fn new<W: AsRef<Path>, L: AsRef<Path>>(
+        identifier: &str,
+        world_dir: W,
+        log_file: L,
+    ) -> InjectionConnection {
         let namespace = "inject".to_string();
         InjectionConnection {
             structures_dir: world_dir
@@ -37,7 +45,12 @@ impl InjectionConnection {
                 .join(identifier),
             namespace,
             identifier: identifier.to_string(),
+            log_observer: LogObserver::new(log_file),
         }
+    }
+
+    pub fn add_listener(&mut self, listener: &str) -> UnboundedReceiver<LogEvent> {
+        self.log_observer.add_listener(listener)
     }
 
     pub fn inject_group(&self, group: Vec<Command>) -> io::Result<()> {
@@ -57,6 +70,7 @@ impl InjectionConnection {
         ));
         builder.add_block(new_command_block(
             CommandBlockKind::Repeat,
+            None,
             "setblock ~ ~-1 ~ redstone_block".to_string(),
             false,
             true,
@@ -65,6 +79,7 @@ impl InjectionConnection {
         ));
         builder.add_block(new_command_block(
             CommandBlockKind::Chain,
+            None,
             "setblock ~ ~-2 ~ stone".to_string(),
             false,
             true,
@@ -73,6 +88,7 @@ impl InjectionConnection {
         ));
         builder.add_block(new_command_block(
             CommandBlockKind::Chain,
+            None,
             "reload".to_string(),
             false,
             true,
@@ -127,62 +143,8 @@ impl InjectionConnection {
     }
 }
 
-fn new_structure_block(name: String, mode: String, pos: Coordinate3<i32>) -> Block {
-    Block {
-        name: "minecraft:structure_block".to_string(),
-        pos,
-        properties: BTreeMap::new(),
-        nbt: Some(nbt::Value::Compound(HashMap::from_iter([
-            ("name".to_string(), nbt::Value::String(name)),
-            ("mode".to_string(), nbt::Value::String(mode)),
-        ]))),
-    }
-}
-
-fn new_command_block(
-    kind: CommandBlockKind,
-    command: String,
-    conditional: bool,
-    always_active: bool,
-    facing: Direction3,
-    pos: Coordinate3<i32>,
-) -> Block {
-    let mut properties = BTreeMap::from_iter([("facing".to_string(), facing.to_string())]);
-    if conditional {
-        properties.insert("conditional".to_string(), "true".to_string());
-    }
-
-    let mut nbt = HashMap::from_iter([("Command".to_string(), nbt::Value::String(command))]);
-    if always_active {
-        nbt.insert("auto".to_string(), nbt::Value::Byte(1));
-    }
-
-    Block {
-        name: kind.block_name().to_string(),
-        pos,
-        properties,
-        nbt: Some(nbt::Value::Compound(nbt)),
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum CommandBlockKind {
-    Impulse,
-    Chain,
-    Repeat,
-}
-
-impl CommandBlockKind {
-    fn block_name(&self) -> &'static str {
-        match self {
-            CommandBlockKind::Impulse => "minecraft:command_block",
-            CommandBlockKind::Chain => "minecraft:chain_command_block",
-            CommandBlockKind::Repeat => "minecraft:repeating_command_block",
-        }
-    }
-}
-
 pub struct Command {
+    name: Option<String>,
     command: String,
     conditional: bool,
 }
@@ -200,9 +162,16 @@ impl From<CommandBlock<Command>> for Block {
             .as_ref()
             .map(|it| it.conditional)
             .unwrap_or_default();
-        let command = cmd_block.command.map(|it| it.command).unwrap_or_default();
+
+        let (name, command) = if let Some(command) = cmd_block.command {
+            (command.name, command.command)
+        } else {
+            (None, String::default())
+        };
+
         new_command_block(
             CommandBlockKind::Chain,
+            name,
             command,
             conditional,
             true,
@@ -212,30 +181,73 @@ impl From<CommandBlock<Command>> for Block {
     }
 }
 
+pub struct CommandBuilder {
+    custom_name: Option<String>,
+    command: String,
+    conditional: bool,
+}
+
+impl CommandBuilder {
+    pub fn new(command: &str) -> CommandBuilder {
+        CommandBuilder {
+            custom_name: None,
+            command: command.to_string(),
+            conditional: false,
+        }
+    }
+
+    pub fn custom_name(mut self, custom_name: Option<String>) -> CommandBuilder {
+        self.custom_name = custom_name;
+        self
+    }
+
+    pub fn name(self, name: Option<&str>) -> CommandBuilder {
+        self.custom_name(name.map(|name| format!(r#"{{"text":"{}"}}"#, name)))
+    }
+
+    pub fn conditional(mut self, conditional: bool) -> CommandBuilder {
+        self.conditional = conditional;
+        self
+    }
+
+    pub fn build(self) -> Command {
+        Command {
+            name: self.custom_name,
+            command: self.command,
+            conditional: self.conditional,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn it_works() -> io::Result<()> {
+    #[tokio::test]
+    async fn it_works() -> io::Result<()> {
         // given:
-        let connection = InjectionConnection::new(
-            "foo",
-            "/mnt/c/Users/Adrian/AppData/Roaming/.minecraft/saves/Scribble",
-        );
+        let minecraft_dir = Path::new("/mnt/c/Users/Adrodoc/AppData/Roaming/.minecraft");
+        let world_dir = minecraft_dir.join("saves/Scribble");
+        let log_file = minecraft_dir.join("logs/latest.log");
+        let mut connection = InjectionConnection::new("foo", world_dir, log_file);
+
+        let name = "test1";
+
         let group = vec![
-            Command {
-                command: "say foo".to_string(),
-                conditional: false,
-            },
-            Command {
-                command: "say bar".to_string(),
-                conditional: false,
-            },
+            CommandBuilder::new("say teleporting").build(),
+            CommandBuilder::new("function abc:123").build(),
+            CommandBuilder::new("execute at @p run teleport @p ~ ~1 ~")
+                .name(Some(name))
+                .build(),
         ];
 
         // when:
         connection.inject_group(group)?;
+        let mut listener = connection.add_listener(name);
+
+        let event = listener.recv().await;
+
+        println!("{:?}", event);
 
         // then:
         Ok(())
