@@ -111,17 +111,17 @@ impl LogObserver {
 /// ```
 #[derive(Clone, Debug)]
 pub struct LogEvent {
-    executor: String,
-    message: String,
+    pub executor: String,
+    pub message: String,
+    private: (),
 }
-
-const ZERO_TO_NINE: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 impl FromStr for LogEvent {
     type Err = ();
 
     fn from_str(line: &str) -> Result<Self, Self::Err> {
         fn from_string_opt(line: &str) -> Option<LogEvent> {
+            const ZERO_TO_NINE: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
             let (executor, message) = line
                 .strip_prefix('[')?
                 .strip_prefix(ZERO_TO_NINE)?
@@ -139,6 +139,7 @@ impl FromStr for LogEvent {
             Some(LogEvent {
                 executor: executor.to_string(),
                 message: message.to_string(),
+                private: (),
             })
         }
         from_string_opt(line).ok_or(())

@@ -1,5 +1,6 @@
+pub mod log_observer;
+
 mod geometry3;
-mod log_observer;
 mod placement;
 mod structure;
 mod utils;
