@@ -17,13 +17,13 @@ use tokio::{
     time::Duration,
 };
 
-pub struct LogObserver {
+pub(crate) struct LogObserver {
     path: PathBuf,
     listeners: Arc<RwLock<HashMap<String, UnboundedSender<LogEvent>>>>,
 }
 
 impl LogObserver {
-    pub fn new<P: AsRef<Path>>(path: P) -> LogObserver {
+    pub(crate) fn new<P: AsRef<Path>>(path: P) -> LogObserver {
         let path = path.as_ref().to_path_buf();
         let listeners = Arc::new(RwLock::new(HashMap::new()));
 
@@ -92,7 +92,7 @@ impl LogObserver {
         }
     }
 
-    pub fn add_listener(&mut self, name: &str) -> UnboundedReceiver<LogEvent> {
+    pub(crate) fn add_listener(&mut self, name: &str) -> UnboundedReceiver<LogEvent> {
         let (sender, receiver) = unbounded_channel();
         self.listeners
             .write()

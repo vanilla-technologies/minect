@@ -1,0 +1,6 @@
+execute store result score commandBlockOutput minect_global run gamerule commandBlockOutput
+execute store result score logAdminCommands minect_global run gamerule logAdminCommands
+execute store result score sendCommandFeedback minect_global run gamerule sendCommandFeedback
+gamerule commandBlockOutput true
+gamerule logAdminCommands true
+gamerule sendCommandFeedback false

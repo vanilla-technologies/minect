@@ -1,17 +1,23 @@
 use crate::geometry3::{Coordinate3, Direction3};
 use std::{cmp::max, convert::TryFrom};
 
-pub trait Command {
+pub(crate) trait Command {
     fn is_conditional(&self) -> bool;
 }
 
-pub struct CommandBlock<C: Command> {
-    pub command: Option<C>,
-    pub coordinate: Coordinate3<i32>,
-    pub direction: Direction3,
+impl Command for String {
+    fn is_conditional(&self) -> bool {
+        false
+    }
 }
 
-pub fn place_commands<C: Command>(chain: Vec<C>) -> Vec<CommandBlock<C>> {
+pub(crate) struct CommandBlock<C: Command> {
+    pub(crate) command: Option<C>,
+    pub(crate) coordinate: Coordinate3<i32>,
+    pub(crate) direction: Direction3,
+}
+
+pub(crate) fn place_commands<C: Command>(chain: Vec<C>) -> Vec<CommandBlock<C>> {
     let max_cond_len = max_cond_len(&chain);
     // The minimum size for the primary direction needed to place all conditional commands
     let min_prim_size = max_cond_len + 2;
@@ -115,12 +121,12 @@ where
 /// | **1** |  4 |  3 |  8 | 11 |
 /// | **2** |  5 |  6 |  7 | 12 |
 /// | **3** | 16 | 15 | 14 | 13 |
-pub struct QuaterSpiralCurve {
+pub(crate) struct QuaterSpiralCurve {
     next: (i32, i32),
 }
 
 impl QuaterSpiralCurve {
-    pub fn new() -> QuaterSpiralCurve {
+    pub(crate) fn new() -> QuaterSpiralCurve {
         QuaterSpiralCurve { next: (0, 0) }
     }
 }

@@ -10,14 +10,14 @@ use std::{
     iter::FromIterator,
 };
 
-pub struct StructureBuilder {
+pub(crate) struct StructureBuilder {
     size: Coordinate3<i32>,
     palette: Vec<PaletteBlock>,
     blocks: Vec<StructureBlock>,
 }
 
 impl StructureBuilder {
-    pub fn new() -> StructureBuilder {
+    pub(crate) fn new() -> StructureBuilder {
         StructureBuilder {
             size: Coordinate3(0, 0, 0),
             palette: Vec::new(),
@@ -25,7 +25,7 @@ impl StructureBuilder {
         }
     }
 
-    pub fn add_block(&mut self, block: Block) {
+    pub(crate) fn add_block(&mut self, block: Block) {
         let Block {
             name,
             pos,
@@ -48,7 +48,7 @@ impl StructureBuilder {
         self.size = Coordinate3::max(self.size, pos + Coordinate3(1, 1, 1));
     }
 
-    pub fn build(self) -> Structure {
+    pub(crate) fn build(self) -> Structure {
         Structure {
             data_version: 2724,
             size: self.size.into(),
@@ -59,14 +59,14 @@ impl StructureBuilder {
     }
 }
 
-pub struct Block {
-    pub name: String,
-    pub pos: Coordinate3<i32>,
-    pub properties: BTreeMap<String, String>,
-    pub nbt: Option<Value>,
+pub(crate) struct Block {
+    pub(crate) name: String,
+    pub(crate) pos: Coordinate3<i32>,
+    pub(crate) properties: BTreeMap<String, String>,
+    pub(crate) nbt: Option<Value>,
 }
 
-pub fn new_structure_block(name: String, mode: String, pos: Coordinate3<i32>) -> Block {
+pub(crate) fn new_structure_block(name: String, mode: String, pos: Coordinate3<i32>) -> Block {
     Block {
         name: "minecraft:structure_block".to_string(),
         pos,
@@ -78,7 +78,7 @@ pub fn new_structure_block(name: String, mode: String, pos: Coordinate3<i32>) ->
     }
 }
 
-pub fn new_command_block(
+pub(crate) fn new_command_block(
     kind: CommandBlockKind,
     name: Option<String>,
     command: String,
@@ -109,7 +109,7 @@ pub fn new_command_block(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CommandBlockKind {
+pub(crate) enum CommandBlockKind {
     Impulse,
     Chain,
     Repeat,

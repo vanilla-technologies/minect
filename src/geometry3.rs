@@ -8,17 +8,17 @@ use std::{
 use num_traits::Signed;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Coordinate3<T>(pub T, pub T, pub T);
+pub(crate) struct Coordinate3<T>(pub(crate) T, pub(crate) T, pub(crate) T);
 
 impl<T> Coordinate3<T> {
-    pub fn map<F, R>(self, f: F) -> Coordinate3<R>
+    pub(crate) fn map<F, R>(self, f: F) -> Coordinate3<R>
     where
         F: Fn(T) -> R,
     {
         Coordinate3(f(self.0), f(self.1), f(self.2))
     }
 
-    pub fn zip<F, U, R>(self, other: Coordinate3<U>, f: F) -> Coordinate3<R>
+    pub(crate) fn zip<F, U, R>(self, other: Coordinate3<U>, f: F) -> Coordinate3<R>
     where
         F: Fn(T, U) -> R,
     {
@@ -28,12 +28,12 @@ impl<T> Coordinate3<T> {
 
 impl<T: Ord> Coordinate3<T> {
     /// Finds the [Coordinate3] of the minimum corner in the cuboid spanned by `a` and `b`.
-    pub fn min(a: Coordinate3<T>, b: Coordinate3<T>) -> Coordinate3<T> {
+    pub(crate) fn min(a: Coordinate3<T>, b: Coordinate3<T>) -> Coordinate3<T> {
         a.zip(b, min)
     }
 
     /// Finds the [Coordinate3] of the maximum corner in the cuboid spanned by `a` and `b`.
-    pub fn max(a: Coordinate3<T>, b: Coordinate3<T>) -> Coordinate3<T> {
+    pub(crate) fn max(a: Coordinate3<T>, b: Coordinate3<T>) -> Coordinate3<T> {
         a.zip(b, max)
     }
 }
@@ -97,14 +97,14 @@ impl<T> From<Coordinate3<T>> for Vec<T> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Axis3 {
+pub(crate) enum Axis3 {
     X,
     Y,
     Z,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Direction3 {
+pub(crate) enum Direction3 {
     East,
     West,
     Up,
@@ -114,7 +114,7 @@ pub enum Direction3 {
 }
 
 impl Direction3 {
-    pub fn axis(&self) -> Axis3 {
+    pub(crate) fn axis(&self) -> Axis3 {
         match self {
             Direction3::East => Axis3::X,
             Direction3::West => Axis3::X,
@@ -125,7 +125,7 @@ impl Direction3 {
         }
     }
 
-    pub fn is_positive(&self) -> bool {
+    pub(crate) fn is_positive(&self) -> bool {
         match self {
             Direction3::East => true,
             Direction3::West => false,
@@ -136,11 +136,11 @@ impl Direction3 {
         }
     }
 
-    pub fn is_negative(&self) -> bool {
+    pub(crate) fn is_negative(&self) -> bool {
         !self.is_positive()
     }
 
-    pub fn signum(&self) -> i8 {
+    pub(crate) fn signum(&self) -> i8 {
         if self.is_positive() {
             1
         } else {
@@ -148,7 +148,7 @@ impl Direction3 {
         }
     }
 
-    pub fn as_str(&self) -> &'static str {
+    pub(crate) fn as_str(&self) -> &'static str {
         match self {
             Direction3::East => "east",
             Direction3::West => "west",
@@ -232,7 +232,7 @@ impl<S: Signed> TryFrom<Coordinate3<S>> for Direction3 {
 /// | **y** | 0 | -1 |  0 |
 /// | **z** | 1 |  0 |  0 |
 #[allow(non_camel_case_types)]
-pub enum Orientation3 {
+pub(crate) enum Orientation3 {
     XYZ,
     XYz,
     XZY,
@@ -295,7 +295,10 @@ impl Orientation3 {
     /// Some orientations are their own reverse, bot others are not. You can undo by orienting to
     /// the [inverse](Orientation3::inverse) orientation.
     // TODO consume to avoid clone
-    pub fn orient<T: Clone + Neg<Output = T>>(&self, coordinate: Coordinate3<T>) -> Coordinate3<T> {
+    pub(crate) fn orient<T: Clone + Neg<Output = T>>(
+        &self,
+        coordinate: Coordinate3<T>,
+    ) -> Coordinate3<T> {
         let mut result = coordinate.clone();
         let Coordinate3(mut t1, mut t2, mut t3) = coordinate;
         if self.direction1().is_negative() {
@@ -315,7 +318,7 @@ impl Orientation3 {
 
     /// Find the inverse [Orientation3]. This is equivalent to inverting the rotation matrix, which
     /// is the same as transposing it.
-    pub fn inverse(&self) -> Orientation3 {
+    pub(crate) fn inverse(&self) -> Orientation3 {
         match self {
             Orientation3::XYZ => Orientation3::XYZ,
             Orientation3::XYz => Orientation3::XYz,
@@ -369,7 +372,7 @@ impl Orientation3 {
     }
 
     /// The primary [direction](Direction3) of this [orientation](Orientation3).
-    pub fn direction1(&self) -> Direction3 {
+    pub(crate) fn direction1(&self) -> Direction3 {
         match self {
             Orientation3::XYZ => Direction3::East,
             Orientation3::XYz => Direction3::East,
@@ -423,7 +426,7 @@ impl Orientation3 {
     }
 
     /// The secondary [direction](Direction3) of this [orientation](Orientation3).
-    pub fn direction2(&self) -> Direction3 {
+    pub(crate) fn direction2(&self) -> Direction3 {
         match self {
             Orientation3::XYZ => Direction3::Up,
             Orientation3::XYz => Direction3::Up,
@@ -477,7 +480,7 @@ impl Orientation3 {
     }
 
     /// The tertiary [direction](Direction3) of this [orientation](Orientation3).
-    pub fn direction3(&self) -> Direction3 {
+    pub(crate) fn direction3(&self) -> Direction3 {
         match self {
             Orientation3::XYZ => Direction3::South,
             Orientation3::XYz => Direction3::North,

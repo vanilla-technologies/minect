@@ -17,4 +17,5 @@ notify = "4.0"
 tokio = { version = "1.8", features = ["fs", "io-util", "rt-multi-thread", "macros", "sync", "time"] }
 
 [dev-dependencies]
+serial_test = "0.5"
 strum = { version = "0.21", features = ["derive"] }

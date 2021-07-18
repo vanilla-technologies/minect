@@ -1,0 +1,2 @@
+scoreboard objectives remove minect_config
+scoreboard objectives remove minect_global
