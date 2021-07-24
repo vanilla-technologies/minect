@@ -12,14 +12,15 @@ fn main() -> io::Result<()> {
 fn set_env() -> io::Result<()> {
     let path = "build.env";
     println!("cargo:rerun-if-changed={}", path);
-
-    for (key, value) in BufReader::new(File::open(path)?)
-        .lines()
-        .collect::<Result<Vec<_>, _>>()?
-        .iter()
-        .flat_map(|line| line.split_once('='))
-    {
-        println!("cargo:rustc-env={}={}", key, value);
+    if let Ok(file) = File::open(path) {
+        for (key, value) in BufReader::new(file)
+            .lines()
+            .collect::<Result<Vec<_>, _>>()?
+            .iter()
+            .flat_map(|line| line.split_once('='))
+        {
+            println!("cargo:rustc-env={}={}", key, value);
+        }
     }
     Ok(())
 }
