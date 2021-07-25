@@ -60,6 +60,14 @@ impl<T> IndexMut<Axis3> for Coordinate3<T> {
     }
 }
 
+impl<T: Neg> Neg for Coordinate3<T> {
+    type Output = Coordinate3<T::Output>;
+
+    fn neg(self) -> Self::Output {
+        self.map(Neg::neg)
+    }
+}
+
 impl<T: Add> Add for Coordinate3<T> {
     type Output = Coordinate3<T::Output>;
 
@@ -163,6 +171,21 @@ impl Direction3 {
 impl Display for Direction3 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl Neg for Direction3 {
+    type Output = Direction3;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            Direction3::East => Self::West,
+            Direction3::West => Self::East,
+            Direction3::Up => Self::Down,
+            Direction3::Down => Self::Up,
+            Direction3::South => Self::North,
+            Direction3::North => Self::South,
+        }
     }
 }
 

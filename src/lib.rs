@@ -118,15 +118,24 @@ impl MinecraftConnection {
             Coordinate3(0, 4, 0),
         ));
 
+        const CMD_BLOCK_OFFSET: Coordinate3<i32> = Coordinate3(1, 0, 1);
+
+        let cmd_blocks = place_commands(commands);
+        if let Some(mut block) = clean_up_cmd_block(&cmd_blocks) {
+            block.pos += CMD_BLOCK_OFFSET;
+            builder.add_block(block);
+        }
+
         let mut first = true;
-        for mut block in place_commands(commands).into_iter().map(Block::from) {
+        for mut block in cmd_blocks.into_iter().map(Block::from) {
             if first {
                 block.name = "minecraft:command_block".to_string();
                 first = false;
             }
-            block.pos += Coordinate3(1, 1, 1);
+            block.pos += CMD_BLOCK_OFFSET;
             builder.add_block(block);
         }
+
         let structure = builder.build();
 
         let structure_file = self.structures_dir.join(format!("{}.nbt", id));
@@ -185,6 +194,40 @@ impl MinecraftConnection {
 
         Ok(())
     }
+}
+
+fn clean_up_cmd_block(cmd_blocks: &[CommandBlock<String>]) -> Option<Block> {
+    let (last_pos, last_dir) = cmd_blocks
+        .last()
+        .map(|cmd_block| (cmd_block.coordinate, cmd_block.direction))?;
+
+    let mut pos = last_pos;
+    pos[last_dir.axis()] += last_dir.signum() as i32;
+
+    let max_pos = cmd_blocks
+        .iter()
+        .fold(pos, |pos, block| Coordinate3::max(pos, block.coordinate));
+
+    let relative_min = -pos;
+    let relative_max = relative_min + max_pos;
+    let fill_cmd = format!(
+        "fill ~{} ~{} ~{} ~{} ~{} ~{} air",
+        relative_min.0,
+        relative_min.1,
+        relative_min.2,
+        relative_max.0,
+        relative_max.1,
+        relative_max.2
+    );
+    Some(new_command_block(
+        CommandBlockKind::Chain,
+        None,
+        fill_cmd,
+        false,
+        true,
+        -last_dir,
+        pos,
+    ))
 }
 
 fn create_file(path: impl AsRef<Path>, contents: &str) -> io::Result<()> {

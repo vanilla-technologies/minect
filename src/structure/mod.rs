@@ -48,6 +48,10 @@ impl StructureBuilder {
         self.size = Coordinate3::max(self.size, pos + Coordinate3(1, 1, 1));
     }
 
+    pub(crate) fn size(&self) -> Coordinate3<i32> {
+        self.size
+    }
+
     pub(crate) fn build(self) -> Structure {
         Structure {
             data_version: 2724,
