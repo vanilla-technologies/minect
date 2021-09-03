@@ -9,6 +9,7 @@ use crate::{
     geometry3::Coordinate3,
     structure::{new_command_block, new_structure_block, CommandBlockKind},
 };
+use flate2::{write::GzEncoder, Compression};
 use fs3::FileExt;
 use geometry3::Direction3;
 use log_observer::{LogEvent, LogObserver};
@@ -68,15 +69,11 @@ impl MinecraftConnection {
 
         create_dir_all(&self.structures_dir)?;
         let id = self.get_structure_id()?;
+        let next_id = id.wrapping_add(1);
 
         let mut builder = StructureBuilder::new();
         builder.add_block(new_structure_block(
-            format!(
-                "{}:{}/{}",
-                self.namespace,
-                self.identifier,
-                id.wrapping_add(1)
-            ),
+            format!("{}:{}/{}", self.namespace, self.identifier, next_id),
             "LOAD".to_string(),
             Coordinate3(0, 0, 0),
         ));
@@ -138,11 +135,19 @@ impl MinecraftConnection {
 
         let structure = builder.build();
 
-        let structure_file = self.structures_dir.join(format!("{}.nbt", id));
+        // Create a corrupt file that prevents Minecraft from caching it
+        let next_structure_file =
+            File::create(self.structures_dir.join(format!("{}.nbt", next_id)))?;
+        GzEncoder::new(next_structure_file, Compression::none()).write_all(&[u8::MAX, 0, 0])?;
 
-        let file = File::create(structure_file)?;
+        let temporary_file = self.structures_dir.join("tmp.nbt");
+        let file = File::create(&temporary_file)?;
         let mut writer = BufWriter::new(file);
         nbt::to_gzip_writer(&mut writer, &structure, None).unwrap();
+
+        let structure_file = self.structures_dir.join(format!("{}.nbt", id));
+        // Create file as atomically as possible
+        std::fs::rename(&temporary_file, &structure_file)?;
 
         Ok(())
     }
