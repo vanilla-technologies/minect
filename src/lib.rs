@@ -1,4 +1,4 @@
-mod log_observer;
+pub mod log_observer;
 
 mod geometry3;
 mod placement;
