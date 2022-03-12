@@ -20,22 +20,29 @@ use tokio::{
 pub(crate) struct LogObserver {
     path: PathBuf,
     listeners: Arc<RwLock<HashMap<String, UnboundedSender<LogEvent>>>>,
+    listener_vec: Arc<RwLock<Vec<UnboundedSender<LogEvent>>>>,
 }
 
 impl LogObserver {
     pub(crate) fn new<P: AsRef<Path>>(path: P) -> LogObserver {
         let path = path.as_ref().to_path_buf();
         let listeners = Arc::new(RwLock::new(HashMap::new()));
+        let listener_vec = Arc::new(RwLock::new(Vec::new()));
 
         let observer = LogObserver {
             path: path.clone(),
             listeners: listeners.clone(),
+            listener_vec: listener_vec.clone(),
         };
         thread::spawn(|| {
             observer.observe_log().unwrap(); // TODO panic
         });
 
-        LogObserver { path, listeners }
+        LogObserver {
+            path,
+            listeners,
+            listener_vec,
+        }
     }
 
     fn observe_log(self) -> io::Result<()> {
@@ -81,6 +88,21 @@ impl LogObserver {
 
     fn process_line(&self, line: &String) {
         if let Some(event) = line.parse::<LogEvent>().ok() {
+            let listeners = self.listener_vec.read().unwrap();
+            let mut delete_indexes = Vec::new();
+            for (index, listener) in listeners.iter().enumerate() {
+                if let Err(SendError(_event)) = listener.send(event.clone()) {
+                    delete_indexes.push(index);
+                }
+            }
+            drop(listeners);
+            if !delete_indexes.is_empty() {
+                let mut listeners = self.listener_vec.write().unwrap();
+                for delete_index in delete_indexes {
+                    listeners.remove(delete_index);
+                }
+            }
+
             let listeners = self.listeners.read().unwrap();
             if let Some(listener) = listeners.get(&event.executor) {
                 if let Err(SendError(event)) = listener.send(event) {
@@ -90,6 +112,12 @@ impl LogObserver {
                 }
             }
         }
+    }
+
+    pub(crate) fn add_general_listener(&mut self) -> UnboundedReceiver<LogEvent> {
+        let (sender, receiver) = unbounded_channel();
+        self.listener_vec.write().unwrap().push(sender);
+        receiver
     }
 
     pub(crate) fn add_listener(&mut self, name: &str) -> UnboundedReceiver<LogEvent> {

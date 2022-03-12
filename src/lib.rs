@@ -58,6 +58,10 @@ impl MinecraftConnection {
         }
     }
 
+    pub fn add_general_listener(&mut self) -> UnboundedReceiver<LogEvent> {
+        self.log_observer.add_general_listener()
+    }
+
     pub fn add_listener(&mut self, listener: &str) -> UnboundedReceiver<LogEvent> {
         self.log_observer.add_listener(listener)
     }
