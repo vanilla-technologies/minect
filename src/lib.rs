@@ -194,6 +194,7 @@ impl MinecraftConnection {
         extract_datapack_file!("data/minecraft/tags/functions/tick.json")?;
         extract_datapack_file!("data/minect/functions/enable_logging.mcfunction")?;
         extract_datapack_file!("data/minect/functions/install.mcfunction")?;
+        extract_datapack_file!("data/minect/functions/load.mcfunction")?;
         extract_datapack_file!("data/minect/functions/pulse_redstone.mcfunction")?;
         extract_datapack_file!("data/minect/functions/reload.mcfunction")?;
         extract_datapack_file!("data/minect/functions/reset_logging.mcfunction")?;
