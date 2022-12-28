@@ -1,3 +1,21 @@
+// Minect is library that allows a program to connect to a running Minecraft instance without
+// requiring any Minecraft mods.
+//
+// © Copyright (C) 2021, 2022 Adrodoc <adrodoc55@googlemail.com> & skess42 <skagaros@gmail.com>
+//
+// This file is part of Minect.
+//
+// Minect is free software: you can redistribute it and/or modify it under the terms of the GNU
+// General Public License as published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// Minect is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+// the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+// Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with Minect.
+// If not, see <http://www.gnu.org/licenses/>.
+
 pub mod log_observer;
 
 mod geometry3;
@@ -24,15 +42,6 @@ use std::{
 use structure::{Block, StructureBuilder};
 use tokio::sync::mpsc::UnboundedReceiver;
 use utils::io_invalid_data;
-
-macro_rules! extract_file {
-    ($out_path:expr, $include_path:literal, $relative_path:literal) => {
-        create_file(
-            $out_path.join($relative_path),
-            include_str!(concat!($include_path, $relative_path)),
-        )
-    };
-}
 
 pub struct MinecraftConnection {
     identifier: String,
@@ -184,9 +193,17 @@ impl MinecraftConnection {
     }
 
     fn extract_datapack(&self) -> io::Result<()> {
+        macro_rules! include_datapack_template {
+            ($relative_path:expr) => {
+                include_str!(concat!(env!("OUT_DIR"), "/src/datapack/", $relative_path))
+            };
+        }
         macro_rules! extract_datapack_file {
-            ($relative_path:literal) => {
-                extract_file!(self.datapack_dir, "datapack/", $relative_path)
+            ($relative_path:expr) => {
+                create_file(
+                    self.datapack_dir.join($relative_path),
+                    include_datapack_template!($relative_path),
+                )
             };
         }
 

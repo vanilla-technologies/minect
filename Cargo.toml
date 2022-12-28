@@ -15,8 +15,18 @@ hematite-nbt = { version = "0.5" }
 num-traits = "0.2"
 serde = { version = "1", features = ["derive"] }
 notify = "4.0"
-tokio = { version = "1.8", features = ["fs", "io-util", "rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1.8", features = [
+  "fs",
+  "io-util",
+  "rt-multi-thread",
+  "macros",
+  "sync",
+  "time",
+] }
 
 [dev-dependencies]
 serial_test = "0.5"
 strum = { version = "0.21", features = ["derive"] }
+
+[build-dependencies]
+walkdir = "2"
