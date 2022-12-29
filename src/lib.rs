@@ -139,7 +139,7 @@ impl MinecraftConnection {
         let mut first = true;
         for mut block in cmd_blocks.into_iter().map(Block::from) {
             if first {
-                block.name = "minecraft:command_block".to_string();
+                block.name = CommandBlockKind::Impulse.block_name().to_string();
                 first = false;
             }
             block.pos += CMD_BLOCK_OFFSET;
@@ -409,74 +409,5 @@ impl LoggedCommandBuilder {
             custom_name: self.custom_name,
             command: self.command,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-    use std::time::Duration;
-    use tokio::time::timeout;
-
-    const TEST_WORLD_DIR: &str = env!("TEST_WORLD_DIR");
-
-    #[tokio::test]
-    #[serial]
-    async fn test_tag() -> io::Result<()> {
-        // given:
-        let mut connection = MinecraftConnectionBuilder::from_ref("test", TEST_WORLD_DIR).build();
-        let name = "test";
-        let commands = vec![
-            "say running test_tag".to_string(),
-            LoggedCommand::from_str("function minect:enable_logging").to_string(),
-            LoggedCommand::builder("tag @s add success".to_string())
-                .name(name)
-                .build()
-                .to_string(),
-            LoggedCommand::from_str("function minect:reset_logging").to_string(),
-        ];
-        let mut events = connection.add_listener(name);
-
-        // when:
-        connection.inject_commands(commands)?;
-
-        // then:
-        let event = timeout(Duration::from_secs(5), events.recv())
-            .await?
-            .unwrap();
-        assert_eq!(event.message, format!("Added tag 'success' to {}", name));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_score_objective() -> io::Result<()> {
-        // given:
-        let mut connection = MinecraftConnectionBuilder::from_ref("test", TEST_WORLD_DIR).build();
-        let name = "test";
-        let commands = vec![
-            "say running test_score_objective".to_string(),
-            LoggedCommand::from_str("function minect:enable_logging").to_string(),
-            LoggedCommand::builder("scoreboard objectives add success dummy".to_string())
-                .name(name)
-                .build()
-                .to_string(),
-            LoggedCommand::from_str("scoreboard objectives remove success").to_string(),
-            LoggedCommand::from_str("function minect:reset_logging").to_string(),
-        ];
-        let mut events = connection.add_listener(name);
-
-        // when:
-        connection.inject_commands(commands)?;
-
-        // then:
-        let event = timeout(Duration::from_secs(5), events.recv())
-            .await?
-            .unwrap();
-        assert_eq!(event.message, "Created new objective [success]");
-
-        Ok(())
     }
 }

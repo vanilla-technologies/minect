@@ -159,7 +159,7 @@ impl LogObserver {
 pub struct LogEvent {
     pub executor: String,
     pub message: String,
-    private: (),
+    _private: (),
 }
 
 impl FromStr for LogEvent {
@@ -185,7 +185,7 @@ impl FromStr for LogEvent {
             Some(LogEvent {
                 executor: executor.to_string(),
                 message: message.to_string(),
-                private: (),
+                _private: (),
             })
         }
         from_string_opt(line).ok_or(())

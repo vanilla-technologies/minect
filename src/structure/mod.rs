@@ -66,10 +66,6 @@ impl StructureBuilder {
         self.size = Coordinate3::max(self.size, pos + Coordinate3(1, 1, 1));
     }
 
-    pub(crate) fn size(&self) -> Coordinate3<i32> {
-        self.size
-    }
-
     pub(crate) fn build(self) -> Structure {
         Structure {
             data_version: 2724,
@@ -138,7 +134,7 @@ pub(crate) enum CommandBlockKind {
 }
 
 impl CommandBlockKind {
-    fn block_name(&self) -> &'static str {
+    pub(crate) fn block_name(&self) -> &'static str {
         match self {
             CommandBlockKind::Impulse => "minecraft:command_block",
             CommandBlockKind::Chain => "minecraft:chain_command_block",
