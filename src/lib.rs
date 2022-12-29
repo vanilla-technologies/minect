@@ -52,7 +52,14 @@ pub struct MinecraftConnection {
 }
 
 impl MinecraftConnection {
-    pub fn new(identifier: String, world_dir: PathBuf, log_file: PathBuf) -> MinecraftConnection {
+    pub fn builder(
+        identifier: impl Into<String>,
+        world_dir: impl Into<PathBuf>,
+    ) -> MinecraftConnectionBuilder {
+        MinecraftConnectionBuilder::new(identifier, world_dir)
+    }
+
+    fn new(identifier: String, world_dir: PathBuf, log_file: PathBuf) -> MinecraftConnection {
         let namespace = "minect".to_string();
         MinecraftConnection {
             structures_dir: world_dir
@@ -271,20 +278,19 @@ pub struct MinecraftConnectionBuilder {
 }
 
 impl MinecraftConnectionBuilder {
-    pub fn from_ref(identifier: &str, world_dir: impl AsRef<Path>) -> MinecraftConnectionBuilder {
-        MinecraftConnectionBuilder::new(identifier.to_string(), world_dir.as_ref().to_path_buf())
-    }
-
-    pub fn new(identifier: String, world_dir: PathBuf) -> MinecraftConnectionBuilder {
+    fn new(
+        identifier: impl Into<String>,
+        world_dir: impl Into<PathBuf>,
+    ) -> MinecraftConnectionBuilder {
         MinecraftConnectionBuilder {
-            identifier,
-            world_dir,
+            identifier: identifier.into(),
+            world_dir: world_dir.into(),
             log_file: None,
         }
     }
 
-    pub fn log_file(mut self, log_file: PathBuf) -> MinecraftConnectionBuilder {
-        self.log_file = Some(log_file);
+    pub fn log_file(mut self, log_file: impl Into<PathBuf>) -> MinecraftConnectionBuilder {
+        self.log_file = Some(log_file.into());
         self
     }
 
@@ -326,33 +332,52 @@ impl From<CommandBlock<String>> for Block {
     }
 }
 
-pub struct LoggedCommand {
+pub fn logged_command(command: impl Into<String>) -> String {
+    LoggedCommandBuilder::new(command).to_string()
+}
+
+pub fn named_logged_command(name: &str, command: impl Into<String>) -> String {
+    LoggedCommandBuilder::new(command).name(name).to_string()
+}
+
+pub fn enable_logging_command() -> String {
+    logged_command("function minect:enable_logging")
+}
+
+pub fn reset_logging_command() -> String {
+    logged_command("function minect:reset_logging")
+}
+
+pub struct LoggedCommandBuilder {
     custom_name: Option<String>,
     command: String,
 }
 
-impl LoggedCommand {
-    pub fn from_str(command: &str) -> LoggedCommand {
-        LoggedCommand::from(command.to_string())
-    }
-}
-
-impl From<String> for LoggedCommand {
-    fn from(command: String) -> Self {
-        LoggedCommand {
-            command,
+impl LoggedCommandBuilder {
+    pub fn new(command: impl Into<String>) -> LoggedCommandBuilder {
+        LoggedCommandBuilder {
             custom_name: None,
+            command: command.into(),
         }
     }
+
+    pub fn custom_name(mut self, custom_name: String) -> LoggedCommandBuilder {
+        self.custom_name = Some(custom_name);
+        self
+    }
+
+    pub fn name(self, name: &str) -> LoggedCommandBuilder {
+        self.custom_name(format!(r#"{{"text":"{}"}}"#, escape_json(name)))
+    }
 }
 
-impl Display for LoggedCommand {
+impl Display for LoggedCommandBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(
             "execute at @e[type=area_effect_cloud,tag=minect_connection,limit=1] \
                 run summon command_block_minecart ~ ~ ~ {",
         )?;
-        if let Some(custom_name) = self.custom_name.as_ref() {
+        if let Some(custom_name) = &self.custom_name {
             write!(f, "\"CustomName\":\"{}\",", escape_json(custom_name))?;
         }
         write!(f, "\"Command\":\"{}\",", self.command)?;
@@ -368,46 +393,4 @@ impl Display for LoggedCommand {
 
 fn escape_json(json: &str) -> String {
     json.replace("\\", "\\\\").replace('"', "\\\"")
-}
-
-impl placement::Command for LoggedCommand {
-    fn is_conditional(&self) -> bool {
-        false
-    }
-}
-
-impl LoggedCommand {
-    pub fn builder(command: String) -> LoggedCommandBuilder {
-        LoggedCommandBuilder::new(command)
-    }
-}
-
-pub struct LoggedCommandBuilder {
-    custom_name: Option<String>,
-    command: String,
-}
-
-impl LoggedCommandBuilder {
-    pub fn new(command: String) -> LoggedCommandBuilder {
-        LoggedCommandBuilder {
-            custom_name: None,
-            command,
-        }
-    }
-
-    pub fn custom_name(mut self, custom_name: String) -> LoggedCommandBuilder {
-        self.custom_name = Some(custom_name);
-        self
-    }
-
-    pub fn name(self, name: &str) -> LoggedCommandBuilder {
-        self.custom_name(format!(r#"{{"text":"{}"}}"#, escape_json(name)))
-    }
-
-    pub fn build(self) -> LoggedCommand {
-        LoggedCommand {
-            custom_name: self.custom_name,
-            command: self.command,
-        }
-    }
 }
