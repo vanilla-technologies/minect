@@ -35,7 +35,7 @@ use placement::{place_commands, CommandBlock};
 use std::{
     collections::BTreeMap,
     fmt::{self, Display},
-    fs::{create_dir_all, write, File, OpenOptions},
+    fs::{create_dir_all, remove_dir_all, write, File, OpenOptions},
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
@@ -47,9 +47,12 @@ pub struct MinecraftConnection {
     identifier: String,
     structures_dir: PathBuf,
     datapack_dir: PathBuf,
-    namespace: String,
-    log_observer: LogObserver,
+    log_file: PathBuf,
+    log_observer: Option<LogObserver>,
+    _private: (),
 }
+
+const NAMESPACE: &str = "minect";
 
 impl MinecraftConnection {
     pub fn builder(
@@ -60,31 +63,49 @@ impl MinecraftConnection {
     }
 
     fn new(identifier: String, world_dir: PathBuf, log_file: PathBuf) -> MinecraftConnection {
-        let namespace = "minect".to_string();
         MinecraftConnection {
             structures_dir: world_dir
                 .join("generated")
-                .join(&namespace)
+                .join(NAMESPACE)
                 .join("structures")
                 .join(&identifier),
-            datapack_dir: world_dir.join("datapacks/minect"),
+            datapack_dir: world_dir.join("datapacks").join(NAMESPACE),
             identifier,
-            namespace,
-            log_observer: LogObserver::new(log_file),
+            log_file,
+            log_observer: None,
+            _private: (),
         }
     }
 
+    pub fn get_identifier(&self) -> &str {
+        &self.identifier
+    }
+
+    /// The root directory of the datapack used to operate the connection in Minecraft.
+    pub fn get_datapack_dir(&self) -> &Path {
+        &self.datapack_dir
+    }
+
     pub fn add_listener(&mut self) -> UnboundedReceiver<LogEvent> {
-        self.log_observer.add_listener()
+        self.get_log_observer().add_listener()
     }
 
     pub fn add_named_listener(&mut self, name: impl Into<String>) -> UnboundedReceiver<LogEvent> {
-        self.log_observer.add_named_listener(name)
+        self.get_log_observer().add_named_listener(name)
+    }
+
+    fn get_log_observer(&mut self) -> &mut LogObserver {
+        if self.log_observer.is_none() {
+            // Start LogObserver only when needed
+            self.log_observer = Some(LogObserver::new(&self.log_file));
+        }
+        self.log_observer.as_mut().unwrap() // Unwrap is safe because we just assigned the value
     }
 
     pub fn inject_commands(&self, commands: Vec<String>) -> io::Result<()> {
         if !self.datapack_dir.is_dir() {
-            self.extract_datapack()?;
+            // Create datapack only when needed
+            self.create_datapack()?;
         }
 
         create_dir_all(&self.structures_dir)?;
@@ -93,7 +114,7 @@ impl MinecraftConnection {
 
         let mut builder = StructureBuilder::new();
         builder.add_block(new_structure_block(
-            format!("{}:{}/{}", self.namespace, self.identifier, next_id),
+            format!("{}:{}/{}", NAMESPACE, self.identifier, next_id),
             "LOAD".to_string(),
             Coordinate3(0, 0, 0),
         ));
@@ -199,7 +220,8 @@ impl MinecraftConnection {
         Ok(id)
     }
 
-    fn extract_datapack(&self) -> io::Result<()> {
+    /// Creates the datapack used to operate the connection in Minecraft at the directory [Self::datapack_dir()].
+    pub fn create_datapack(&self) -> io::Result<()> {
         macro_rules! include_datapack_template {
             ($relative_path:expr) => {
                 include_str!(concat!(env!("OUT_DIR"), "/src/datapack/", $relative_path))
@@ -227,6 +249,11 @@ impl MinecraftConnection {
         extract_datapack_file!("pack.mcmeta")?;
 
         Ok(())
+    }
+
+    /// Removes the datapack used to operate the connection in Minecraft at the directory [Self::datapack_dir()].
+    pub fn remove_datapack(&self) -> io::Result<()> {
+        remove_dir_all(&self.datapack_dir)
     }
 }
 
