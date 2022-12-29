@@ -27,7 +27,7 @@ async fn test_tag() -> io::Result<()> {
         named_logged_command(name, "tag @s add success"),
         reset_logging_command(),
     ];
-    let mut events = connection.add_listener(name);
+    let mut events = connection.add_named_listener(name);
 
     // when:
     connection.inject_commands(commands)?;
@@ -54,7 +54,7 @@ async fn test_score_objective() -> io::Result<()> {
         logged_command("scoreboard objectives remove success"),
         reset_logging_command(),
     ];
-    let mut events = connection.add_listener(name);
+    let mut events = connection.add_named_listener(name);
 
     // when:
     connection.inject_commands(commands)?;

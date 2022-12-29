@@ -16,14 +16,16 @@
 // You should have received a copy of the GNU General Public License along with Minect.
 // If not, see <http://www.gnu.org/licenses/>.
 
-use crate::utils::{io_broken_pipe, io_other};
+use crate::{
+    utils::{io_broken_pipe, io_other},
+    LogEvent,
+};
 use notify::{raw_watcher, Op, RawEvent, RecursiveMode, Watcher};
 use std::{
     collections::HashMap,
     fs::File,
     io::{self, BufRead, BufReader, Seek, SeekFrom},
     path::{Path, PathBuf},
-    str::FromStr,
     sync::{
         mpsc::{channel, RecvTimeoutError},
         Arc, RwLock,
@@ -37,20 +39,20 @@ use tokio::{
 
 pub struct LogObserver {
     path: PathBuf,
-    listeners: Arc<RwLock<HashMap<String, UnboundedSender<LogEvent>>>>,
-    listener_vec: Arc<RwLock<Vec<UnboundedSender<LogEvent>>>>,
+    listeners: Arc<RwLock<Vec<UnboundedSender<LogEvent>>>>,
+    named_listeners: Arc<RwLock<HashMap<String, Vec<UnboundedSender<LogEvent>>>>>,
 }
 
 impl LogObserver {
     pub fn new<P: AsRef<Path>>(path: P) -> LogObserver {
         let path = path.as_ref().to_path_buf();
-        let listeners = Arc::new(RwLock::new(HashMap::new()));
-        let listener_vec = Arc::new(RwLock::new(Vec::new()));
+        let named_listeners = Arc::new(RwLock::new(HashMap::new()));
+        let listeners = Arc::new(RwLock::new(Vec::new()));
 
         let observer = LogObserver {
             path: path.clone(),
+            named_listeners: named_listeners.clone(),
             listeners: listeners.clone(),
-            listener_vec: listener_vec.clone(),
         };
         thread::spawn(|| {
             observer.observe_log().unwrap(); // TODO panic
@@ -58,8 +60,8 @@ impl LogObserver {
 
         LogObserver {
             path,
+            named_listeners,
             listeners,
-            listener_vec,
         }
     }
 
@@ -74,7 +76,7 @@ impl LogObserver {
         reader.seek(SeekFrom::End(0))?;
 
         // Watch log file as long as the other LogFileObserver is not dropped
-        while Arc::strong_count(&self.listeners) > 1 {
+        while Arc::strong_count(&self.named_listeners) > 1 {
             let event = event_reciever.recv_timeout(Duration::from_millis(50));
             if let Err(RecvTimeoutError::Disconnected) = event {
                 return Err(io_broken_pipe(RecvTimeoutError::Disconnected));
@@ -106,88 +108,70 @@ impl LogObserver {
 
     fn process_line(&self, line: &String) {
         if let Some(event) = line.parse::<LogEvent>().ok() {
-            let listeners = self.listener_vec.read().unwrap();
-            let mut delete_indexes = Vec::new();
-            for (index, listener) in listeners.iter().enumerate() {
-                if let Err(SendError(_event)) = listener.send(event.clone()) {
-                    delete_indexes.push(index);
-                }
-            }
-            drop(listeners);
-            if !delete_indexes.is_empty() {
-                let mut listeners = self.listener_vec.write().unwrap();
-                for delete_index in delete_indexes {
-                    listeners.remove(delete_index);
-                }
+            let indexes_to_delete = {
+                let listeners = self.listeners.read().unwrap();
+                send_event_to_listeners(&event, listeners.iter())
+            };
+            if !indexes_to_delete.is_empty() {
+                let mut listeners = self.listeners.write().unwrap();
+                delete_indexes(&mut listeners, indexes_to_delete);
             }
 
-            let listeners = self.listeners.read().unwrap();
-            if let Some(listener) = listeners.get(&event.executor) {
-                if let Err(SendError(event)) = listener.send(event) {
-                    drop(listeners);
-                    let mut listeners = self.listeners.write().unwrap();
-                    listeners.remove(&event.executor);
+            let indexes_to_delete = {
+                let named_listeners = self.named_listeners.read().unwrap();
+                if let Some(named_listeners) = named_listeners.get(&event.executor) {
+                    send_event_to_listeners(&event, named_listeners)
+                } else {
+                    Vec::new()
+                }
+            };
+            if !indexes_to_delete.is_empty() {
+                let mut named_listeners = self.named_listeners.write().unwrap();
+                if let Some(listeners) = named_listeners.get_mut(&event.executor) {
+                    if indexes_to_delete.len() == listeners.len() {
+                        named_listeners.remove(&event.executor);
+                    } else {
+                        delete_indexes(listeners, indexes_to_delete);
+                    }
                 }
             }
         }
     }
 
-    pub fn add_general_listener(&mut self) -> UnboundedReceiver<LogEvent> {
+    pub fn add_listener(&mut self) -> UnboundedReceiver<LogEvent> {
         let (sender, receiver) = unbounded_channel();
-        self.listener_vec.write().unwrap().push(sender);
+        self.listeners.write().unwrap().push(sender);
         receiver
     }
 
-    pub fn add_listener(&mut self, name: &str) -> UnboundedReceiver<LogEvent> {
+    pub fn add_named_listener(&mut self, name: impl Into<String>) -> UnboundedReceiver<LogEvent> {
         let (sender, receiver) = unbounded_channel();
-        self.listeners
+        self.named_listeners
             .write()
             .unwrap()
-            .insert(name.to_string(), sender);
+            .entry(name.into())
+            .or_default()
+            .push(sender);
         receiver
     }
 }
 
-/// A [LogEvent] represents a line in Minecrafts log file that written when a command is executed
-/// successfully.
-///
-/// Here is an example:
-/// ```none
-/// [13:14:30] [Server thread/INFO]: [executor: message]
-/// ```
-#[derive(Clone, Debug)]
-pub struct LogEvent {
-    pub executor: String,
-    pub message: String,
-    _private: (),
+fn send_event_to_listeners<'l>(
+    event: &LogEvent,
+    listeners: impl IntoIterator<Item = &'l UnboundedSender<LogEvent>>,
+) -> Vec<usize> {
+    let mut indexes_to_delete = Vec::new();
+    for (index, listener) in listeners.into_iter().enumerate() {
+        if let Err(SendError(_event)) = listener.send(event.clone()) {
+            indexes_to_delete.push(index);
+        }
+    }
+    indexes_to_delete
 }
 
-impl FromStr for LogEvent {
-    type Err = ();
-
-    fn from_str(line: &str) -> Result<Self, Self::Err> {
-        fn from_string_opt(line: &str) -> Option<LogEvent> {
-            const ZERO_TO_NINE: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-            let (executor, message) = line
-                .strip_prefix('[')?
-                .strip_prefix(ZERO_TO_NINE)?
-                .strip_prefix(ZERO_TO_NINE)?
-                .strip_prefix(':')?
-                .strip_prefix(ZERO_TO_NINE)?
-                .strip_prefix(ZERO_TO_NINE)?
-                .strip_prefix(':')?
-                .strip_prefix(ZERO_TO_NINE)?
-                .strip_prefix(ZERO_TO_NINE)?
-                .strip_prefix("] [Server thread/INFO]: [")?
-                .trim_end()
-                .strip_suffix(']')?
-                .split_once(": ")?;
-            Some(LogEvent {
-                executor: executor.to_string(),
-                message: message.to_string(),
-                _private: (),
-            })
-        }
-        from_string_opt(line).ok_or(())
+fn delete_indexes<E>(listeners: &mut Vec<E>, indexes_to_delete: Vec<usize>) {
+    // Back to front to avoid index shifting
+    for index in indexes_to_delete.into_iter().rev() {
+        listeners.remove(index);
     }
 }

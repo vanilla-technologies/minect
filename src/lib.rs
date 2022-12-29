@@ -16,21 +16,21 @@
 // You should have received a copy of the GNU General Public License along with Minect.
 // If not, see <http://www.gnu.org/licenses/>.
 
-pub mod log_observer;
-
 mod geometry3;
+pub mod log;
 mod placement;
 mod structure;
 mod utils;
 
 use crate::{
     geometry3::Coordinate3,
+    log::LogEvent,
     structure::{new_command_block, new_structure_block, CommandBlockKind},
 };
 use flate2::{write::GzEncoder, Compression};
 use fs3::FileExt;
 use geometry3::Direction3;
-use log_observer::{LogEvent, LogObserver};
+use log::observer::LogObserver;
 use placement::{place_commands, CommandBlock};
 use std::{
     collections::BTreeMap,
@@ -74,12 +74,12 @@ impl MinecraftConnection {
         }
     }
 
-    pub fn add_general_listener(&mut self) -> UnboundedReceiver<LogEvent> {
-        self.log_observer.add_general_listener()
+    pub fn add_listener(&mut self) -> UnboundedReceiver<LogEvent> {
+        self.log_observer.add_listener()
     }
 
-    pub fn add_listener(&mut self, listener: &str) -> UnboundedReceiver<LogEvent> {
-        self.log_observer.add_listener(listener)
+    pub fn add_named_listener(&mut self, name: impl Into<String>) -> UnboundedReceiver<LogEvent> {
+        self.log_observer.add_named_listener(name)
     }
 
     pub fn inject_commands(&self, commands: Vec<String>) -> io::Result<()> {
