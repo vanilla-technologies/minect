@@ -18,7 +18,7 @@
 
 use crate::{
     utils::{io_broken_pipe, io_other},
-    LogEvent,
+    LoadedListener, LogEvent,
 };
 use notify::{raw_watcher, Op, RawEvent, RecursiveMode, Watcher};
 use std::{
@@ -39,6 +39,7 @@ use tokio::{
 
 pub struct LogObserver {
     path: PathBuf,
+    loaded_listeners: Arc<RwLock<Vec<LoadedListener>>>,
     listeners: Arc<RwLock<Vec<UnboundedSender<LogEvent>>>>,
     named_listeners: Arc<RwLock<HashMap<String, Vec<UnboundedSender<LogEvent>>>>>,
 }
@@ -46,13 +47,15 @@ pub struct LogObserver {
 impl LogObserver {
     pub fn new<P: AsRef<Path>>(path: P) -> LogObserver {
         let path = path.as_ref().to_path_buf();
-        let named_listeners = Arc::new(RwLock::new(HashMap::new()));
         let listeners = Arc::new(RwLock::new(Vec::new()));
+        let named_listeners = Arc::new(RwLock::new(HashMap::new()));
+        let loaded_listeners = Arc::new(RwLock::new(Vec::new()));
 
         let observer = LogObserver {
             path: path.clone(),
-            named_listeners: named_listeners.clone(),
+            loaded_listeners: loaded_listeners.clone(),
             listeners: listeners.clone(),
+            named_listeners: named_listeners.clone(),
         };
         thread::spawn(|| {
             observer.observe_log().unwrap(); // TODO panic
@@ -60,8 +63,9 @@ impl LogObserver {
 
         LogObserver {
             path,
-            named_listeners,
+            loaded_listeners,
             listeners,
+            named_listeners,
         }
     }
 
@@ -108,34 +112,53 @@ impl LogObserver {
 
     fn process_line(&self, line: &String) {
         if let Some(event) = line.parse::<LogEvent>().ok() {
-            let indexes_to_delete = {
-                let listeners = self.listeners.read().unwrap();
-                send_event_to_listeners(&event, listeners.iter())
-            };
-            if !indexes_to_delete.is_empty() {
-                let mut listeners = self.listeners.write().unwrap();
-                delete_indexes(&mut listeners, indexes_to_delete);
-            }
+            self.send_event_to_loaded_listeners(&event);
+            self.send_event_to_listeners(&event);
+            self.send_event_to_named_listeners(event);
+        }
+    }
 
-            let indexes_to_delete = {
-                let named_listeners = self.named_listeners.read().unwrap();
-                if let Some(named_listeners) = named_listeners.get(&event.executor) {
-                    send_event_to_listeners(&event, named_listeners)
+    fn send_event_to_loaded_listeners(&self, event: &LogEvent) {
+        let loaded_listeners = self.loaded_listeners.read().unwrap();
+        for loaded_listener in loaded_listeners.iter() {
+            loaded_listener.on_event(event.clone())
+        }
+    }
+
+    fn send_event_to_listeners(&self, event: &LogEvent) {
+        let indexes_to_delete = {
+            let listeners = self.listeners.read().unwrap();
+            send_event_to_listeners(event, listeners.iter())
+        };
+        if !indexes_to_delete.is_empty() {
+            let mut listeners = self.listeners.write().unwrap();
+            delete_indexes(&mut listeners, indexes_to_delete);
+        }
+    }
+
+    fn send_event_to_named_listeners(&self, event: LogEvent) {
+        let indexes_to_delete = {
+            let named_listeners = self.named_listeners.read().unwrap();
+            if let Some(named_listeners) = named_listeners.get(&event.executor) {
+                send_event_to_listeners(&event, named_listeners)
+            } else {
+                Vec::new()
+            }
+        };
+        if !indexes_to_delete.is_empty() {
+            let mut named_listeners = self.named_listeners.write().unwrap();
+            if let Some(listeners) = named_listeners.get_mut(&event.executor) {
+                if indexes_to_delete.len() == listeners.len() {
+                    named_listeners.remove(&event.executor);
                 } else {
-                    Vec::new()
-                }
-            };
-            if !indexes_to_delete.is_empty() {
-                let mut named_listeners = self.named_listeners.write().unwrap();
-                if let Some(listeners) = named_listeners.get_mut(&event.executor) {
-                    if indexes_to_delete.len() == listeners.len() {
-                        named_listeners.remove(&event.executor);
-                    } else {
-                        delete_indexes(listeners, indexes_to_delete);
-                    }
+                    delete_indexes(listeners, indexes_to_delete);
                 }
             }
         }
+    }
+
+    pub(crate) fn add_loaded_listener(&mut self, listener: LoadedListener) {
+        self.loaded_listeners.write().unwrap().push(listener);
     }
 
     pub fn add_listener(&mut self) -> UnboundedReceiver<LogEvent> {

@@ -1,10 +1,15 @@
 use minect::{
-    enable_logging_command, logged_command, named_logged_command, reset_logging_command,
+    log::{
+        add_tag_command, enable_logging_command, logged_command, named_logged_command,
+        query_scoreboard_command, reset_logging_command, summon_named_entity_command, AddTagOutput,
+        QueryScoreboardOutput, SummonNamedEntityOutput,
+    },
     MinecraftConnection,
 };
 use serial_test::serial;
 use std::{io, time::Duration};
 use tokio::time::timeout;
+use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 
 const TEST_WORLD_DIR: &str = env!("TEST_WORLD_DIR");
 const TEST_LOG_FILE: &str = env!("TEST_LOG_FILE");
@@ -17,17 +22,18 @@ fn new_connection() -> MinecraftConnection {
 
 #[tokio::test]
 #[serial]
-async fn test_tag() -> io::Result<()> {
+async fn test_add_tag_command() -> io::Result<()> {
     // given:
     let mut connection = new_connection();
-    let name = "test";
+    let listener_name = "test";
+    let tag = "success";
     let commands = [
-        "say running test_tag",
-        &enable_logging_command(),
-        &named_logged_command(name, "tag @s add success"),
-        &reset_logging_command(),
+        "say running test_add_tag_command",
+        &logged_command(enable_logging_command()),
+        &named_logged_command(listener_name, add_tag_command("@s", tag)),
+        &logged_command(reset_logging_command()),
     ];
-    let mut events = connection.add_named_listener(name);
+    let mut events = connection.add_named_listener(listener_name);
 
     // when:
     connection.inject_commands(&commands)?;
@@ -36,34 +42,84 @@ async fn test_tag() -> io::Result<()> {
     let event = timeout(Duration::from_secs(5), events.recv())
         .await?
         .unwrap();
-    assert_eq!(event.message, format!("Added tag 'success' to {}", name));
+    let output = event.output.parse::<AddTagOutput>().unwrap();
+    assert_eq!(output.tag, tag);
+    assert_eq!(output.entity, listener_name);
 
     Ok(())
 }
 
 #[tokio::test]
 #[serial]
-async fn test_score_objective() -> io::Result<()> {
+async fn test_summon_named_entity_command() -> io::Result<()> {
     // given:
     let mut connection = new_connection();
-    let name = "test";
+    let name = "success";
     let commands = [
-        "say running test_score_objective",
+        "say running test_summon_named_entity_command",
         &enable_logging_command(),
-        &named_logged_command(name, "scoreboard objectives add success dummy"),
-        &logged_command("scoreboard objectives remove success"),
+        &summon_named_entity_command(name),
         &reset_logging_command(),
     ];
-    let mut events = connection.add_named_listener(name);
+    let events = connection.add_listener();
 
     // when:
     connection.inject_commands(&commands)?;
 
     // then:
-    let event = timeout(Duration::from_secs(5), events.recv())
-        .await?
-        .unwrap();
-    assert_eq!(event.message, "Created new objective [success]");
+    let event = timeout(
+        Duration::from_secs(5),
+        UnboundedReceiverStream::new(events)
+            .filter(|event| {
+                if let Ok(output) = event.output.parse::<SummonNamedEntityOutput>() {
+                    output.name == name
+                } else {
+                    false
+                }
+            })
+            .next(),
+    )
+    .await?
+    .unwrap();
+    assert_eq!(event.output, "Summoned new success");
+
+    Ok(())
+}
+
+#[tokio::test]
+#[serial]
+async fn test_query_scoreboard_command() -> io::Result<()> {
+    // given:
+    let mut connection = new_connection();
+    let scoreboard = "minect_test_global";
+    let entity = "@e[type=sheep,tag=minect_test_sheep]";
+    let commands = [
+        "say running test_query_scoreboard_command",
+        &format!("scoreboard objectives add {} dummy", scoreboard),
+        "summon sheep ~ ~ ~ {Tags:[minect_test_sheep],NoAI:true}",
+        &format!("scoreboard players set {} {} 42", entity, scoreboard),
+        &enable_logging_command(),
+        &query_scoreboard_command(entity, scoreboard),
+        &reset_logging_command(),
+        &format!("kill {}", entity),
+        &format!("scoreboard objectives remove {}", scoreboard),
+    ];
+    let events = connection.add_listener();
+
+    // when:
+    connection.inject_commands(&commands)?;
+
+    // then:
+    let output = timeout(
+        Duration::from_secs(5),
+        UnboundedReceiverStream::new(events)
+            .filter_map(|event| event.output.parse::<QueryScoreboardOutput>().ok())
+            .next(),
+    )
+    .await?
+    .unwrap();
+    assert_eq!(output.scoreboard, scoreboard);
+    assert_eq!(output.score, 42);
 
     Ok(())
 }

@@ -17,21 +17,26 @@
 // If not, see <http://www.gnu.org/licenses/>.
 
 mod geometry3;
+mod json;
 pub mod log;
 mod placement;
 mod structure;
 mod utils;
 
 use crate::{
-    log::{observer::LogObserver, LogEvent},
+    log::{
+        enable_logging_command, observer::LogObserver, reset_logging_command,
+        summon_named_entity_command, LogEvent, SummonNamedEntityOutput,
+    },
+    placement::generate_structure,
     utils::io_invalid_data,
 };
+use ::log::error;
 use flate2::{write::GzEncoder, Compression};
 use fs3::FileExt;
-use placement::generate_structure;
 use std::{
-    fmt::{self, Display},
-    fs::{create_dir_all, remove_dir_all, write, File, OpenOptions},
+    fmt::Display,
+    fs::{create_dir_all, remove_dir_all, remove_file, write, File, OpenOptions},
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
@@ -43,6 +48,7 @@ pub struct MinecraftConnection {
     datapack_dir: PathBuf,
     log_file: PathBuf,
     log_observer: Option<LogObserver>,
+    loaded_listener_initialized: bool,
     _private: (),
 }
 
@@ -67,6 +73,7 @@ impl MinecraftConnection {
             identifier,
             log_file,
             log_observer: None,
+            loaded_listener_initialized: false,
             _private: (),
         }
     }
@@ -97,35 +104,45 @@ impl MinecraftConnection {
     }
 
     pub fn inject_commands(
-        &self,
+        &mut self,
         commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
     ) -> io::Result<()> {
         if !self.datapack_dir.is_dir() {
             // Create datapack only when needed
             self.create_datapack()?;
         }
-
+        if !self.loaded_listener_initialized {
+            self.init_loaded_listener();
+        }
         create_dir_all(&self.structures_dir)?;
+
         let id = self.increment_and_get_structure_id()?;
         let next_id = id.wrapping_add(1);
 
-        let structure = generate_structure(&self.identifier, next_id, commands);
+        let (commands, commands_len) = prepend_loaded_command(id, commands);
+        let structure = generate_structure(&self.identifier, next_id, commands, commands_len);
 
         // Create a corrupt file that prevents Minecraft from caching it
-        let next_structure_file =
-            File::create(self.structures_dir.join(format!("{}.nbt", next_id)))?;
+        let next_structure_file = File::create(self.get_structure_file(next_id))?;
         GzEncoder::new(next_structure_file, Compression::none()).write_all(&[u8::MAX, 0, 0])?;
 
-        let temporary_file = self.structures_dir.join("tmp.nbt");
+        let temporary_file = self.get_structure_file("tmp");
         let file = File::create(&temporary_file)?;
         let mut writer = BufWriter::new(file);
         nbt::to_gzip_writer(&mut writer, &structure, None).unwrap();
 
-        let structure_file = self.structures_dir.join(format!("{}.nbt", id));
+        let structure_file = self.get_structure_file(id);
         // Create file as atomically as possible
         std::fs::rename(&temporary_file, &structure_file)?;
 
         Ok(())
+    }
+
+    fn init_loaded_listener(&mut self) {
+        let structures_dir = self.structures_dir.clone();
+        let listener = LoadedListener { structures_dir };
+        self.get_log_observer().add_loaded_listener(listener);
+        self.loaded_listener_initialized = true;
     }
 
     fn increment_and_get_structure_id(&self) -> Result<u64, io::Error> {
@@ -155,7 +172,12 @@ impl MinecraftConnection {
         Ok(id)
     }
 
-    /// Creates the datapack used to operate the connection in Minecraft at the directory [Self::datapack_dir()].
+    fn get_structure_file(&self, id: impl Display) -> PathBuf {
+        self.structures_dir.join(format!("{}.nbt", id))
+    }
+
+    /// Creates the datapack used to operate the connection in Minecraft at the directory
+    /// [Self::get_datapack_dir()].
     pub fn create_datapack(&self) -> io::Result<()> {
         macro_rules! include_datapack_template {
             ($relative_path:expr) => {
@@ -186,10 +208,64 @@ impl MinecraftConnection {
         Ok(())
     }
 
-    /// Removes the datapack used to operate the connection in Minecraft at the directory [Self::datapack_dir()].
+    /// Removes the datapack used to operate the connection in Minecraft at the directory
+    /// [Self::get_datapack_dir()].
     pub fn remove_datapack(&self) -> io::Result<()> {
         remove_dir_all(&self.datapack_dir)
     }
+}
+
+struct LoadedListener {
+    structures_dir: PathBuf,
+}
+impl LoadedListener {
+    fn on_event(&self, event: LogEvent) {
+        if let Some(id) = parse_loaded_output(&event.output) {
+            let structure_file = self.get_structure_file(id);
+            if let Err(error) = remove_file(&structure_file) {
+                error!(
+                    "Failed to remove structure file {} due to: {}",
+                    structure_file.display(),
+                    error
+                );
+            }
+            // Remove all previous structure files in case they are still there
+            // (for instance because a structure was loaded while no connection was active)
+            let mut i = 1;
+            while let Ok(()) = remove_file(self.get_structure_file(id.wrapping_sub(i))) {
+                i += 1;
+            }
+        }
+    }
+
+    fn get_structure_file(&self, id: impl Display) -> PathBuf {
+        self.structures_dir.join(format!("{}.nbt", id))
+    }
+}
+
+const STRUCTURE_LOADED_OUTPUT_PREFIX: &str = "minect_loaded_";
+
+fn parse_loaded_output(output: &str) -> Option<u64> {
+    let output = output.parse::<SummonNamedEntityOutput>().ok()?;
+    let id = &output.name.strip_prefix(STRUCTURE_LOADED_OUTPUT_PREFIX)?;
+    id.parse().ok()
+}
+
+fn prepend_loaded_command(
+    id: u64,
+    commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
+) -> (impl Iterator<Item = String>, usize) {
+    let loaded_cmds = [
+        enable_logging_command(),
+        summon_named_entity_command(&format!("{}{}", STRUCTURE_LOADED_OUTPUT_PREFIX, id)),
+        reset_logging_command(),
+    ];
+    let commands = commands.into_iter();
+    let commands_len = loaded_cmds.len() + commands.len();
+    let commands = loaded_cmds
+        .into_iter()
+        .chain(commands.map(|it| it.to_string()));
+    (commands, commands_len)
 }
 
 fn create_file(path: impl AsRef<Path>, contents: &str) -> io::Result<()> {
@@ -244,67 +320,4 @@ fn log_file_from_world_dir(world_dir: &PathBuf) -> PathBuf {
         .parent()
         .unwrap_or_else(panic_invalid_dir);
     minecraft_dir.join("logs/latest.log")
-}
-
-pub fn logged_command(command: impl Into<String>) -> String {
-    LoggedCommandBuilder::new(command).to_string()
-}
-
-pub fn named_logged_command(name: &str, command: impl Into<String>) -> String {
-    LoggedCommandBuilder::new(command).name(name).to_string()
-}
-
-pub fn enable_logging_command() -> String {
-    logged_command("function minect:enable_logging")
-}
-
-pub fn reset_logging_command() -> String {
-    logged_command("function minect:reset_logging")
-}
-
-pub struct LoggedCommandBuilder {
-    custom_name: Option<String>,
-    command: String,
-}
-
-impl LoggedCommandBuilder {
-    pub fn new(command: impl Into<String>) -> LoggedCommandBuilder {
-        LoggedCommandBuilder {
-            custom_name: None,
-            command: command.into(),
-        }
-    }
-
-    pub fn custom_name(mut self, custom_name: String) -> LoggedCommandBuilder {
-        self.custom_name = Some(custom_name);
-        self
-    }
-
-    pub fn name(self, name: &str) -> LoggedCommandBuilder {
-        self.custom_name(format!(r#"{{"text":"{}"}}"#, escape_json(name)))
-    }
-}
-
-impl Display for LoggedCommandBuilder {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(
-            "execute at @e[type=area_effect_cloud,tag=minect_connection,limit=1] \
-                run summon command_block_minecart ~ ~ ~ {",
-        )?;
-        if let Some(custom_name) = &self.custom_name {
-            write!(f, "\"CustomName\":\"{}\",", escape_json(custom_name))?;
-        }
-        write!(f, "\"Command\":\"{}\",", self.command)?;
-        f.write_str(
-            "\
-            \"Tags\":[\"minect_impulse\"],\
-            \"LastExecution\":1L,\
-            \"TrackOutput\":false,\
-        }",
-        )
-    }
-}
-
-fn escape_json(json: &str) -> String {
-    json.replace("\\", "\\\\").replace('"', "\\\"")
 }

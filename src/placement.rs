@@ -30,13 +30,14 @@ use std::{collections::BTreeMap, iter::FromIterator};
 pub(crate) fn generate_structure(
     identifier: &str,
     next_id: u64,
-    commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
+    commands: impl Iterator<Item = String>,
+    commands_len: usize,
 ) -> Structure {
     let mut builder = StructureBuilder::new();
     for block in generate_basic_structure(identifier, next_id) {
         builder.add_block(block);
     }
-    for block in generate_command_blocks(commands) {
+    for block in generate_command_blocks(commands, commands_len) {
         builder.add_block(block);
     }
     builder.build()
@@ -97,16 +98,15 @@ const MAX_SIZE: Coordinate3<i32> = Coordinate3(16, 136, 15);
 const MAX_LEN: usize = MAX_SIZE.0 as usize * MAX_SIZE.1 as usize * MAX_SIZE.2 as usize;
 
 fn generate_command_blocks(
-    commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
+    commands: impl Iterator<Item = String>,
+    commands_len: usize,
 ) -> impl Iterator<Item = Block> {
-    let commands = commands.into_iter();
-    if commands.len() > MAX_LEN {
+    if commands_len > MAX_LEN {
         warn!(
             "Attempted to injecting {} commands. \
              Only the first {} commands will be injected. \
              The rest will be ignored.",
-            commands.len(),
-            MAX_LEN
+            commands_len, MAX_LEN
         );
     }
 
@@ -122,7 +122,7 @@ fn generate_command_blocks(
     let mut cmd_blocks = commands
         .zip(curve)
         .map(|(command, (coordinate, direction))| CommandBlock {
-            command: command.to_string(),
+            command,
             coordinate,
             direction,
         })
