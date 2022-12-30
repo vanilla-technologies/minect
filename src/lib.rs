@@ -96,7 +96,10 @@ impl MinecraftConnection {
         self.log_observer.as_mut().unwrap() // Unwrap is safe because we just assigned the value
     }
 
-    pub fn inject_commands(&self, commands: Vec<String>) -> io::Result<()> {
+    pub fn inject_commands(
+        &self,
+        commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
+    ) -> io::Result<()> {
         if !self.datapack_dir.is_dir() {
             // Create datapack only when needed
             self.create_datapack()?;

@@ -30,7 +30,7 @@ use std::{collections::BTreeMap, iter::FromIterator};
 pub(crate) fn generate_structure(
     identifier: &str,
     next_id: u64,
-    commands: Vec<String>,
+    commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
 ) -> Structure {
     let mut builder = StructureBuilder::new();
     for block in generate_basic_structure(identifier, next_id) {
@@ -96,7 +96,10 @@ const CMD_BLOCK_OFFSET: Coordinate3<i32> = Coordinate3(0, 0, 1);
 const MAX_SIZE: Coordinate3<i32> = Coordinate3(16, 136, 15);
 const MAX_LEN: usize = MAX_SIZE.0 as usize * MAX_SIZE.1 as usize * MAX_SIZE.2 as usize;
 
-fn generate_command_blocks(commands: Vec<String>) -> impl Iterator<Item = Block> {
+fn generate_command_blocks(
+    commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
+) -> impl Iterator<Item = Block> {
+    let commands = commands.into_iter();
     if commands.len() > MAX_LEN {
         warn!(
             "Attempted to injecting {} commands. \
@@ -117,10 +120,9 @@ fn generate_command_blocks(commands: Vec<String>) -> impl Iterator<Item = Block>
     });
 
     let mut cmd_blocks = commands
-        .into_iter()
         .zip(curve)
         .map(|(command, (coordinate, direction))| CommandBlock {
-            command,
+            command: command.to_string(),
             coordinate,
             direction,
         })

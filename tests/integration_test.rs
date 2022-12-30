@@ -21,16 +21,16 @@ async fn test_tag() -> io::Result<()> {
     // given:
     let mut connection = new_connection();
     let name = "test";
-    let commands = vec![
-        "say running test_tag".to_string(),
-        enable_logging_command(),
-        named_logged_command(name, "tag @s add success"),
-        reset_logging_command(),
+    let commands = [
+        "say running test_tag",
+        &enable_logging_command(),
+        &named_logged_command(name, "tag @s add success"),
+        &reset_logging_command(),
     ];
     let mut events = connection.add_named_listener(name);
 
     // when:
-    connection.inject_commands(commands)?;
+    connection.inject_commands(&commands)?;
 
     // then:
     let event = timeout(Duration::from_secs(5), events.recv())
@@ -47,17 +47,17 @@ async fn test_score_objective() -> io::Result<()> {
     // given:
     let mut connection = new_connection();
     let name = "test";
-    let commands = vec![
-        "say running test_score_objective".to_string(),
-        enable_logging_command(),
-        named_logged_command(name, "scoreboard objectives add success dummy"),
-        logged_command("scoreboard objectives remove success"),
-        reset_logging_command(),
+    let commands = [
+        "say running test_score_objective",
+        &enable_logging_command(),
+        &named_logged_command(name, "scoreboard objectives add success dummy"),
+        &logged_command("scoreboard objectives remove success"),
+        &reset_logging_command(),
     ];
     let mut events = connection.add_named_listener(name);
 
     // when:
-    connection.inject_commands(commands)?;
+    connection.inject_commands(&commands)?;
 
     // then:
     let event = timeout(Duration::from_secs(5), events.recv())
