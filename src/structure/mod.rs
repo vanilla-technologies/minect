@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License along with Minect.
 // If not, see <http://www.gnu.org/licenses/>.
 
-mod nbt;
+pub(crate) mod nbt;
 
 use crate::{
     geometry3::{Coordinate3, Direction3},

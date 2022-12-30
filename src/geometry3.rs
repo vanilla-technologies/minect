@@ -56,6 +56,17 @@ impl<T: Ord> Coordinate3<T> {
     }
 }
 
+impl<T: Clone + Neg<Output = T>> Coordinate3<T> {
+    pub(crate) fn get_in_direction(&self, direction: Direction3) -> T {
+        let raw = self[(direction.axis())].clone();
+        if direction.is_negative() {
+            -raw
+        } else {
+            raw
+        }
+    }
+}
+
 impl<T> Index<Axis3> for Coordinate3<T> {
     type Output = T;
 
@@ -131,11 +142,17 @@ pub(crate) enum Axis3 {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Direction3 {
+    /// +X
     East,
+    /// -X
     West,
+    /// +Y
     Up,
+    /// -Y
     Down,
+    /// +Z
     South,
+    /// -Z
     North,
 }
 
@@ -182,6 +199,20 @@ impl Direction3 {
             Direction3::Down => "down",
             Direction3::South => "south",
             Direction3::North => "north",
+        }
+    }
+
+    pub(crate) fn as_coordinate<N>(&self, one: N, zero: N) -> Coordinate3<N>
+    where
+        N: Clone + Neg<Output = N>,
+    {
+        match self {
+            Direction3::East => Coordinate3(one, zero.clone(), zero),
+            Direction3::West => Coordinate3(-one, zero.clone(), zero),
+            Direction3::Up => Coordinate3(zero.clone(), one, zero),
+            Direction3::Down => Coordinate3(zero.clone(), -one, zero),
+            Direction3::South => Coordinate3(zero.clone(), zero, one),
+            Direction3::North => Coordinate3(zero.clone(), zero, -one),
         }
     }
 }
@@ -253,9 +284,9 @@ impl<S: Signed> TryFrom<Coordinate3<S>> for Direction3 {
 /// on different [axes](Axis3). Lower case axis names represent a negative direction.
 ///
 /// An [Orientation3] can also be represented by a left multiplied rotation matrix where the first
-/// row represents the primary direction, the second row the secondary and so on. A value of 1
-/// indicates a positive direction and a value of -1 indicates a negative direction. Each column
-/// contains exactly one non zero value, as all directions are on different axes.
+/// column represents the primary direction, the second column the secondary and so on. A value of 1
+/// indicates a positive direction and a value of -1 indicates a negative direction. Each column and
+/// row contains exactly one non zero value, as all directions are on different axes.
 ///
 /// For example [Orientation3::XYZ] is represented by the identity matrix:
 ///
@@ -336,7 +367,7 @@ impl Orientation3 {
     /// Some orientations are their own reverse, bot others are not. You can undo by orienting to
     /// the [inverse](Orientation3::inverse) orientation.
     // TODO consume to avoid clone
-    pub(crate) fn orient<T: Clone + Neg<Output = T>>(
+    pub(crate) fn orient_coordinate<T: Clone + Neg<Output = T>>(
         &self,
         coordinate: Coordinate3<T>,
     ) -> Coordinate3<T> {
@@ -357,9 +388,22 @@ impl Orientation3 {
         result
     }
 
+    pub(crate) fn orient_direction(&self, direction: Direction3) -> Direction3 {
+        let target_direction = match direction.axis() {
+            Axis3::X => self.direction1(),
+            Axis3::Y => self.direction2(),
+            Axis3::Z => self.direction3(),
+        };
+        if direction.is_positive() {
+            target_direction
+        } else {
+            -target_direction
+        }
+    }
+
     /// Find the inverse [Orientation3]. This is equivalent to inverting the rotation matrix, which
     /// is the same as transposing it.
-    pub(crate) fn inverse(&self) -> Orientation3 {
+    pub(crate) const fn inverse(&self) -> Orientation3 {
         match self {
             Orientation3::XYZ => Orientation3::XYZ,
             Orientation3::XYz => Orientation3::XYz,
@@ -596,7 +640,7 @@ mod tests {
         for orientation in Orientation3::iter() {
             // when:
             let inverse = orientation.inverse();
-            let actual = inverse.orient(orientation.orient(coordinate));
+            let actual = inverse.orient_coordinate(orientation.orient_coordinate(coordinate));
 
             // then:
             assert_eq!(actual, coordinate, "orientation={:?}", orientation);

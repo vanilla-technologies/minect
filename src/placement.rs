@@ -16,190 +16,241 @@
 // You should have received a copy of the GNU General Public License along with Minect.
 // If not, see <http://www.gnu.org/licenses/>.
 
-use crate::geometry3::{Coordinate3, Direction3};
-use std::{cmp::max, convert::TryFrom};
+use crate::{
+    geometry3::{Coordinate3, Direction3, Orientation3},
+    structure::{
+        nbt::Structure, new_command_block, new_structure_block, Block, CommandBlockKind,
+        StructureBuilder,
+    },
+    NAMESPACE,
+};
+use log::warn;
+use std::{collections::BTreeMap, iter::FromIterator};
 
-pub(crate) trait Command {
-    fn is_conditional(&self) -> bool;
-}
-
-impl Command for String {
-    fn is_conditional(&self) -> bool {
-        false
+pub(crate) fn generate_structure(
+    identifier: &str,
+    next_id: u64,
+    commands: Vec<String>,
+) -> Structure {
+    let mut builder = StructureBuilder::new();
+    for block in generate_basic_structure(identifier, next_id) {
+        builder.add_block(block);
     }
+    for block in generate_command_blocks(commands) {
+        builder.add_block(block);
+    }
+    builder.build()
 }
 
-pub(crate) struct CommandBlock<C: Command> {
-    pub(crate) command: Option<C>,
+fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
+    Vec::from_iter([
+        new_structure_block(
+            format!("{}:{}/{}", NAMESPACE, identifier, next_id),
+            "LOAD".to_string(),
+            Coordinate3(0, 0, 0),
+        ),
+        Block {
+            name: "minecraft:stone".to_string(),
+            pos: Coordinate3(0, 1, 0),
+            properties: BTreeMap::new(),
+            nbt: None,
+        },
+        Block {
+            name: "minecraft:redstone_block".to_string(),
+            pos: Coordinate3(0, 2, 0),
+            properties: BTreeMap::new(),
+            nbt: None,
+        },
+        Block {
+            name: "minecraft:activator_rail".to_string(),
+            pos: Coordinate3(0, 3, 0),
+            properties: BTreeMap::new(),
+            nbt: None,
+        },
+        new_command_block(
+            CommandBlockKind::Repeat,
+            None,
+            "execute \
+                positioned ~ ~-1 ~ \
+                align xyz \
+                unless entity @e[type=area_effect_cloud,dx=1,dy=1,dz=1,tag=minect_connection] \
+                run summon area_effect_cloud ~.5 ~.5 ~.5 {\
+                    Tags:[minect_connection],\
+                    Age:-2147483648,\
+                    Duration:-1,\
+                    WaitTime:-2147483648,\
+                    }"
+            .to_string(),
+            false,
+            true,
+            Direction3::Down,
+            Coordinate3(0, 4, 0),
+        ),
+    ])
+}
+
+const CMD_BLOCK_OFFSET: Coordinate3<i32> = Coordinate3(0, 0, 1);
+/// Minecraft limits the number of blocks that can be targeted by a fill command (which we use to
+/// clean up) to 32768. X is limited to 16 and Z to 15 to stay in the chunk. The Y limit is
+/// therefor calculated as: floor(32768 / 16 / 15) = 136
+const MAX_SIZE: Coordinate3<i32> = Coordinate3(16, 136, 15);
+const MAX_LEN: usize = MAX_SIZE.0 as usize * MAX_SIZE.1 as usize * MAX_SIZE.2 as usize;
+
+fn generate_command_blocks(commands: Vec<String>) -> impl Iterator<Item = Block> {
+    if commands.len() > MAX_LEN {
+        warn!(
+            "Attempted to injecting {} commands. \
+             Only the first {} commands will be injected. \
+             The rest will be ignored.",
+            commands.len(),
+            MAX_LEN
+        );
+    }
+
+    const CURVE_ORIENTATION: Orientation3 = Orientation3::XZY;
+    let max_size = CURVE_ORIENTATION.inverse().orient_coordinate(MAX_SIZE);
+    let curve = CuboidCurve::new(max_size).map(|(coordinate, direction)| {
+        (
+            CURVE_ORIENTATION.orient_coordinate(coordinate),
+            CURVE_ORIENTATION.orient_direction(direction),
+        )
+    });
+
+    let mut cmd_blocks = commands
+        .into_iter()
+        .zip(curve)
+        .map(|(command, (coordinate, direction))| CommandBlock {
+            command,
+            coordinate,
+            direction,
+        })
+        .collect::<Vec<_>>();
+
+    if let Some(cmd_block) = get_clean_up_cmd_block(&cmd_blocks) {
+        cmd_blocks.push(cmd_block);
+    }
+
+    cmd_blocks.into_iter().map(|cmd_block| {
+        let first = cmd_block.coordinate == Coordinate3(0, 0, 0);
+        let kind = if first {
+            CommandBlockKind::Impulse
+        } else {
+            CommandBlockKind::Chain
+        };
+        new_command_block(
+            kind,
+            None,
+            cmd_block.command,
+            false,
+            true,
+            cmd_block.direction,
+            cmd_block.coordinate + CMD_BLOCK_OFFSET,
+        )
+    })
+}
+
+pub(crate) struct CommandBlock {
+    pub(crate) command: String,
     pub(crate) coordinate: Coordinate3<i32>,
     pub(crate) direction: Direction3,
 }
 
-pub(crate) fn place_commands<C: Command>(chain: Vec<C>) -> Vec<CommandBlock<C>> {
-    let max_cond_len = max_cond_len(&chain);
-    // The minimum size for the primary direction needed to place all conditional commands
-    let min_prim_size = max_cond_len + 2;
-    let estimated_side_length = (chain.len() as f32).cbrt().ceil() as usize;
-    let prim_size = max(min_prim_size, estimated_side_length);
+fn get_clean_up_cmd_block(cmd_blocks: &[CommandBlock]) -> Option<CommandBlock> {
+    let (last_coordinate, last_direction) = cmd_blocks
+        .last()
+        .map(|cmd_block| (cmd_block.coordinate, cmd_block.direction))?;
 
-    let mut curve = QuaterSpiralCurve::new()
-        .flat_map(|(x, z)| {
-            let forwards = (x % 2 == 0) == (z % 2 == 0); // Alternate between forwards and backwards
-            (0..prim_size)
-                .map(move |y| if forwards { y } else { prim_size - 1 - y })
-                .map(move |y| Coordinate3(x, y as i32, z))
-        })
-        .enumerate()
-        .peekable();
+    let mut coordinate = last_coordinate;
+    coordinate[last_direction.axis()] += last_direction.signum() as i32;
 
-    let mut next_coordinate = || {
-        let (index, current) = curve.next().unwrap(); // curve is infinite, so unwrap is safe
-        let (_, next) = curve.peek().unwrap(); // curve is infinite, so unwrap is safe
-        let direction = Direction3::try_from(*next - current).unwrap(); // next is guaranteed to be right next to current
-        (index, current, direction)
-    };
+    let max_coordinate = cmd_blocks.iter().fold(coordinate, |coordinate, block| {
+        Coordinate3::max(coordinate, block.coordinate)
+    });
 
-    let mut chain = chain
-        .into_iter()
-        .rev() // Go backwards through the chain to calculate all conditional sequence lengths
-        .scan(0, |cond_seq_len, command| {
-            if command.is_conditional() {
-                *cond_seq_len += 1;
-            } else {
-                let len = *cond_seq_len;
-                if len != 0 {
-                    *cond_seq_len = 0; // Reset
-
-                    // The unconditional command before the first conditional is part of the sequence
-                    return Some((command, len + 1));
-                }
-            }
-            Some((command, *cond_seq_len))
-        })
-        .collect::<Vec<_>>(); // Collect to reverse again
-    chain.reverse();
-
-    let mut result = Vec::new();
-    for (command, cond_seq_len) in chain {
-        let (index, mut coordinate, mut direction) = next_coordinate();
-        if cond_seq_len != 0 {
-            let index = index % prim_size;
-            let space_until_corner = prim_size - 1 - index;
-            if cond_seq_len > space_until_corner {
-                // Insert no operation commands
-                let no_op_count = space_until_corner + 1;
-                let mut i = 0;
-                while i < no_op_count {
-                    i += 1;
-                    result.push(CommandBlock {
-                        command: None,
-                        coordinate,
-                        direction,
-                    });
-                    // Update coordinate
-                    // Use destructuring assignment (https://github.com/rust-lang/rust/issues/71126)
-                    let (_, new_coordinate, new_direction) = next_coordinate();
-                    coordinate = new_coordinate;
-                    direction = new_direction;
-                }
-            }
-        }
-        result.push(CommandBlock {
-            command: Some(command),
-            coordinate,
-            direction,
-        });
-    }
-    result
+    let relative_min = -coordinate;
+    let relative_max = relative_min + max_coordinate;
+    let command = format!(
+        "fill ~{} ~{} ~{} ~{} ~{} ~{} air",
+        relative_min.0,
+        relative_min.1,
+        relative_min.2,
+        relative_max.0,
+        relative_max.1,
+        relative_max.2
+    );
+    Some(CommandBlock {
+        command,
+        coordinate,
+        direction: -last_direction,
+    })
 }
 
-/// Finds the length of the longest sequence of conditional commands
-fn max_cond_len<'l, I, C: 'l>(chain: I) -> usize
-where
-    I: IntoIterator<Item = &'l C>,
-    C: Command,
-{
-    let mut max_cond_len = 0;
-    let mut cond_len = 0;
-    for command in chain {
-        if command.is_conditional() {
-            cond_len += 1;
-        } else {
-            max_cond_len = max(max_cond_len, cond_len);
+/// An [Iterator] producing a space filling curve with a zig zag pattern in the form of a cuboid.
+/// Whenever possible the X axis is incremented or decremented, then the Y axis and if that is not
+/// possible the Z axis.
+pub(crate) struct CuboidCurve {
+    next: Option<Coordinate3<i32>>,
+    size: Coordinate3<i32>,
+}
+
+impl CuboidCurve {
+    pub(crate) fn new(size: Coordinate3<i32>) -> CuboidCurve {
+        CuboidCurve {
+            next: Some(Coordinate3(0, 0, 0)),
+            size,
         }
     }
-    max(max_cond_len, cond_len)
 }
 
-/// An infinite [Iterator] producing a space filling curve starting from the origin by alternating a
-/// quater spiral back and forth. The following table illustrates the iteration scheme:
-/// |  y\x  |  0 |  1 |  2 |  3 |
-/// |-------|----|----|----|----|
-/// | **0** |  1 |  2 |  9 | 10 |
-/// | **1** |  4 |  3 |  8 | 11 |
-/// | **2** |  5 |  6 |  7 | 12 |
-/// | **3** | 16 | 15 | 14 | 13 |
-pub(crate) struct QuaterSpiralCurve {
-    next: (i32, i32),
-}
-
-impl QuaterSpiralCurve {
-    pub(crate) fn new() -> QuaterSpiralCurve {
-        QuaterSpiralCurve { next: (0, 0) }
-    }
-}
-
-impl Iterator for QuaterSpiralCurve {
-    type Item = (i32, i32);
+impl Iterator for CuboidCurve {
+    type Item = (Coordinate3<i32>, Direction3);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let current = self.next;
-        if current.0 > current.1 || (current.0 == current.1 && current.0 % 2 == 0) {
-            if current.0 % 2 == 1 {
-                self.next.1 += 1;
-            } else if current.1 == 0 {
-                self.next.0 += 1;
-            } else {
-                self.next.1 -= 1;
-            }
-        } else {
-            if current.1 % 2 == 0 {
-                self.next.0 += 1;
-            } else if current.0 == 0 {
-                self.next.1 += 1;
-            } else {
-                self.next.0 -= 1;
-            }
-        }
-        Some(current)
+        let current = self.next?;
+        let direction = direction_in_cuboid_curve(current, self.size);
+        self.next = direction.map(|direction| current + direction.as_coordinate(1, 0));
+        let direction = direction?; // Leave the last corner for the clean up command block
+        Some((current, direction))
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_quarter_spiral_curve() {
-        // given:
-        let mut under_test = QuaterSpiralCurve::new();
-
-        // when / then:
-        assert_eq!(under_test.next(), Some((0, 0)));
-        assert_eq!(under_test.next(), Some((1, 0)));
-        assert_eq!(under_test.next(), Some((1, 1)));
-        assert_eq!(under_test.next(), Some((0, 1)));
-        assert_eq!(under_test.next(), Some((0, 2)));
-        assert_eq!(under_test.next(), Some((1, 2)));
-        assert_eq!(under_test.next(), Some((2, 2)));
-        assert_eq!(under_test.next(), Some((2, 1)));
-        assert_eq!(under_test.next(), Some((2, 0)));
-        assert_eq!(under_test.next(), Some((3, 0)));
-        assert_eq!(under_test.next(), Some((3, 1)));
-        assert_eq!(under_test.next(), Some((3, 2)));
-        assert_eq!(under_test.next(), Some((3, 3)));
-        assert_eq!(under_test.next(), Some((2, 3)));
-        assert_eq!(under_test.next(), Some((1, 3)));
-        assert_eq!(under_test.next(), Some((0, 3)));
+fn direction_in_cuboid_curve(
+    current: Coordinate3<i32>,
+    size: Coordinate3<i32>,
+) -> Option<Direction3> {
+    // Try advance x
+    {
+        let forward0 = (current.1 % 2 == 0) == (current.2 % 2 == 0);
+        let max0 = size.0 - 1;
+        let limit0 = if forward0 { max0 } else { 0 };
+        if current.0 != limit0 {
+            return Some(if forward0 {
+                Direction3::East
+            } else {
+                Direction3::West
+            });
+        }
     }
+    // Try advance y
+    {
+        let forward1 = current.2 % 2 == 0;
+        let max1 = size.1 - 1;
+        let limit1 = if forward1 { max1 } else { 0 };
+        if current.1 != limit1 {
+            return Some(if forward1 {
+                Direction3::Up
+            } else {
+                Direction3::Down
+            });
+        }
+    }
+    // Try advance z
+    {
+        let max2 = size.2 - 1;
+        let limit2 = max2;
+        if current.2 != limit2 {
+            return Some(Direction3::South);
+        }
+    }
+    None
 }

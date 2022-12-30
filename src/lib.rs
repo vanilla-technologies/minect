@@ -23,25 +23,19 @@ mod structure;
 mod utils;
 
 use crate::{
-    geometry3::Coordinate3,
-    log::LogEvent,
-    structure::{new_command_block, new_structure_block, CommandBlockKind},
+    log::{observer::LogObserver, LogEvent},
+    utils::io_invalid_data,
 };
 use flate2::{write::GzEncoder, Compression};
 use fs3::FileExt;
-use geometry3::Direction3;
-use log::observer::LogObserver;
-use placement::{place_commands, CommandBlock};
+use placement::generate_structure;
 use std::{
-    collections::BTreeMap,
     fmt::{self, Display},
     fs::{create_dir_all, remove_dir_all, write, File, OpenOptions},
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
-use structure::{Block, StructureBuilder};
 use tokio::sync::mpsc::UnboundedReceiver;
-use utils::io_invalid_data;
 
 pub struct MinecraftConnection {
     identifier: String,
@@ -109,72 +103,10 @@ impl MinecraftConnection {
         }
 
         create_dir_all(&self.structures_dir)?;
-        let id = self.get_structure_id()?;
+        let id = self.increment_and_get_structure_id()?;
         let next_id = id.wrapping_add(1);
 
-        let mut builder = StructureBuilder::new();
-        builder.add_block(new_structure_block(
-            format!("{}:{}/{}", NAMESPACE, self.identifier, next_id),
-            "LOAD".to_string(),
-            Coordinate3(0, 0, 0),
-        ));
-        builder.add_block(Block {
-            name: "minecraft:stone".to_string(),
-            pos: Coordinate3(0, 1, 0),
-            properties: BTreeMap::new(),
-            nbt: None,
-        });
-        builder.add_block(Block {
-            name: "minecraft:redstone_block".to_string(),
-            pos: Coordinate3(0, 2, 0),
-            properties: BTreeMap::new(),
-            nbt: None,
-        });
-        builder.add_block(Block {
-            name: "minecraft:activator_rail".to_string(),
-            pos: Coordinate3(0, 3, 0),
-            properties: BTreeMap::new(),
-            nbt: None,
-        });
-        builder.add_block(new_command_block(
-            CommandBlockKind::Repeat,
-            None,
-            "execute \
-                positioned ~ ~-1 ~ \
-                align xyz \
-                unless entity @e[type=area_effect_cloud,dx=1,dy=1,dz=1,tag=minect_connection] \
-                run summon area_effect_cloud ~.5 ~.5 ~.5 {\
-                    Tags:[minect_connection],\
-                    Age:-2147483648,\
-                    Duration:-1,\
-                    WaitTime:-2147483648,\
-                    }"
-            .to_string(),
-            false,
-            true,
-            Direction3::Down,
-            Coordinate3(0, 4, 0),
-        ));
-
-        const CMD_BLOCK_OFFSET: Coordinate3<i32> = Coordinate3(1, 0, 1);
-
-        let cmd_blocks = place_commands(commands);
-        if let Some(mut block) = clean_up_cmd_block(&cmd_blocks) {
-            block.pos += CMD_BLOCK_OFFSET;
-            builder.add_block(block);
-        }
-
-        let mut first = true;
-        for mut block in cmd_blocks.into_iter().map(Block::from) {
-            if first {
-                block.name = CommandBlockKind::Impulse.block_name().to_string();
-                first = false;
-            }
-            block.pos += CMD_BLOCK_OFFSET;
-            builder.add_block(block);
-        }
-
-        let structure = builder.build();
+        let structure = generate_structure(&self.identifier, next_id, commands);
 
         // Create a corrupt file that prevents Minecraft from caching it
         let next_structure_file =
@@ -193,7 +125,7 @@ impl MinecraftConnection {
         Ok(())
     }
 
-    fn get_structure_id(&self) -> Result<u64, io::Error> {
+    fn increment_and_get_structure_id(&self) -> Result<u64, io::Error> {
         let path = self.structures_dir.join("id.txt");
         let mut id_file = OpenOptions::new()
             .create(true)
@@ -257,40 +189,6 @@ impl MinecraftConnection {
     }
 }
 
-fn clean_up_cmd_block(cmd_blocks: &[CommandBlock<String>]) -> Option<Block> {
-    let (last_pos, last_dir) = cmd_blocks
-        .last()
-        .map(|cmd_block| (cmd_block.coordinate, cmd_block.direction))?;
-
-    let mut pos = last_pos;
-    pos[last_dir.axis()] += last_dir.signum() as i32;
-
-    let max_pos = cmd_blocks
-        .iter()
-        .fold(pos, |pos, block| Coordinate3::max(pos, block.coordinate));
-
-    let relative_min = -pos;
-    let relative_max = relative_min + max_pos;
-    let fill_cmd = format!(
-        "fill ~{} ~{} ~{} ~{} ~{} ~{} air",
-        relative_min.0,
-        relative_min.1,
-        relative_min.2,
-        relative_max.0,
-        relative_max.1,
-        relative_max.2
-    );
-    Some(new_command_block(
-        CommandBlockKind::Chain,
-        None,
-        fill_cmd,
-        false,
-        true,
-        -last_dir,
-        pos,
-    ))
-}
-
 fn create_file(path: impl AsRef<Path>, contents: &str) -> io::Result<()> {
     if let Some(parent) = path.as_ref().parent() {
         create_dir_all(parent)?;
@@ -343,20 +241,6 @@ fn log_file_from_world_dir(world_dir: &PathBuf) -> PathBuf {
         .parent()
         .unwrap_or_else(panic_invalid_dir);
     minecraft_dir.join("logs/latest.log")
-}
-
-impl From<CommandBlock<String>> for Block {
-    fn from(cmd_block: CommandBlock<String>) -> Self {
-        new_command_block(
-            CommandBlockKind::Chain,
-            None,
-            cmd_block.command.unwrap_or_default(),
-            false,
-            true,
-            cmd_block.direction,
-            cmd_block.coordinate,
-        )
-    }
 }
 
 pub fn logged_command(command: impl Into<String>) -> String {
