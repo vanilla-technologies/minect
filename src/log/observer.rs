@@ -16,30 +16,26 @@
 // You should have received a copy of the GNU General Public License along with Minect.
 // If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-    utils::{io_broken_pipe, io_other},
-    LoadedListener, LogEvent,
-};
-use notify::{raw_watcher, Op, RawEvent, RecursiveMode, Watcher};
+use crate::{LoadedListener, LogEvent};
+use encoding_rs::Encoding;
+use log::trace;
+use notify::{event::ModifyKind, recommended_watcher, EventKind, RecursiveMode, Watcher};
 use std::{
     collections::HashMap,
     fs::File,
-    io::{self, BufRead, BufReader, Seek, SeekFrom},
+    io::{BufRead, BufReader, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::{
         mpsc::{channel, RecvTimeoutError},
         Arc, RwLock,
     },
     thread,
-};
-use tokio::{
-    sync::mpsc::{error::SendError, unbounded_channel, UnboundedSender},
     time::Duration,
 };
+use tokio::sync::mpsc::{error::SendError, unbounded_channel, UnboundedSender};
 use tokio_stream::{wrappers::UnboundedReceiverStream, Stream};
 
 pub struct LogObserver {
-    path: PathBuf,
     loaded_listeners: Arc<RwLock<Vec<LoadedListener>>>,
     listeners: Arc<RwLock<Vec<UnboundedSender<LogEvent>>>>,
     named_listeners: Arc<RwLock<HashMap<String, Vec<UnboundedSender<LogEvent>>>>>,
@@ -52,66 +48,108 @@ impl LogObserver {
         let named_listeners = Arc::new(RwLock::new(HashMap::new()));
         let loaded_listeners = Arc::new(RwLock::new(Vec::new()));
 
-        let observer = LogObserver {
-            path: path.clone(),
+        let backend = LogObserverBackend {
+            path,
             loaded_listeners: loaded_listeners.clone(),
             listeners: listeners.clone(),
             named_listeners: named_listeners.clone(),
         };
-        thread::spawn(|| {
-            observer.observe_log().unwrap(); // TODO panic
-        });
+        thread::spawn(|| backend.observe_log());
 
         LogObserver {
-            path,
             loaded_listeners,
             listeners,
             named_listeners,
         }
     }
 
-    fn observe_log(self) -> io::Result<()> {
-        let (event_sender, event_reciever) = channel();
-        let mut watcher = raw_watcher(event_sender).map_err(io_other)?;
-        watcher
-            .watch(&self.path, RecursiveMode::NonRecursive)
-            .map_err(io_other)?;
-
-        let mut reader = BufReader::new(File::open(&self.path)?);
-        reader.seek(SeekFrom::End(0))?;
-
-        // Watch log file as long as the other LogFileObserver is not dropped
-        while Arc::strong_count(&self.named_listeners) > 1 {
-            let event = event_reciever.recv_timeout(Duration::from_millis(50));
-            if let Err(RecvTimeoutError::Disconnected) = event {
-                return Err(io_broken_pipe(RecvTimeoutError::Disconnected));
-            }
-            self.continue_to_read_file(&mut reader)?;
-            if let Ok(RawEvent {
-                op: Ok(Op::CREATE), ..
-            }) = event
-            {
-                reader = BufReader::new(File::open(&self.path)?);
-            }
-        }
-
-        Ok(())
+    pub(crate) fn add_loaded_listener(&mut self, listener: LoadedListener) {
+        self.loaded_listeners.write().unwrap().push(listener);
     }
 
-    fn continue_to_read_file(&self, reader: &mut BufReader<File>) -> io::Result<()> {
-        let mut line = String::new();
+    pub fn add_listener(&mut self) -> impl Stream<Item = LogEvent> {
+        let (sender, receiver) = unbounded_channel();
+        self.listeners.write().unwrap().push(sender);
+        UnboundedReceiverStream::new(receiver)
+    }
+
+    pub fn add_named_listener(&mut self, name: impl Into<String>) -> impl Stream<Item = LogEvent> {
+        let (sender, receiver) = unbounded_channel();
+        self.named_listeners
+            .write()
+            .unwrap()
+            .entry(name.into())
+            .or_default()
+            .push(sender);
+        UnboundedReceiverStream::new(receiver)
+    }
+}
+
+#[cfg(target_os = "windows")]
+static ENCODING: &'static Encoding = encoding_rs::WINDOWS_1252;
+#[cfg(not(target_os = "windows"))]
+static ENCODING: &'static Encoding = encoding_rs::UTF_8;
+
+struct LogObserverBackend {
+    path: PathBuf,
+    loaded_listeners: Arc<RwLock<Vec<LoadedListener>>>,
+    listeners: Arc<RwLock<Vec<UnboundedSender<LogEvent>>>>,
+    named_listeners: Arc<RwLock<HashMap<String, Vec<UnboundedSender<LogEvent>>>>>,
+}
+impl LogObserverBackend {
+    fn observe_log(self) {
+        let (event_sender, event_reciever) = channel();
+        let mut watcher = recommended_watcher(event_sender).unwrap(); // TODO panic
+        let watch_path = self.path.parent().unwrap_or(&self.path);
+        watcher.watch(watch_path, RecursiveMode::Recursive).unwrap(); // TODO panic
+
+        let mut file = File::open(&self.path).unwrap(); // TODO panic
+        file.seek(SeekFrom::End(0)).unwrap(); // TODO panic
+        let mut reader = BufReader::new(file);
+        self.continue_to_read_file(&mut reader);
+
+        // Watch log file as long as the LogFileObserver is not dropped
+        while Arc::strong_count(&self.listeners) > 1 {
+            // On Windows we don't get any modify events, so we check for changes at least once per game tick
+            match event_reciever.recv_timeout(Duration::from_millis(50)) {
+                Ok(Ok(event)) if event.paths.contains(&self.path) => match event.kind {
+                    EventKind::Create(_) => self.update_reader(&mut reader),
+                    EventKind::Modify(ModifyKind::Data(_)) => {
+                        self.continue_to_read_file(&mut reader)
+                    }
+                    _ => {}
+                },
+                Err(RecvTimeoutError::Timeout) => self.continue_to_read_file(&mut reader),
+                Err(RecvTimeoutError::Disconnected) => panic!("File watcher thread crashed!"),
+                _ => {}
+            }
+        }
+        trace!("Shutting down LogObserverBackend");
+    }
+
+    fn update_reader(&self, reader: &mut BufReader<File>) {
+        self.continue_to_read_file(reader);
+        if let Ok(file) = File::open(&self.path) {
+            trace!("Detected file change");
+            *reader = BufReader::new(file);
+        }
+    }
+
+    fn continue_to_read_file(&self, reader: &mut impl BufRead) {
+        let mut buffer = Vec::new();
         loop {
-            line.clear();
-            let bytes_read = reader.read_line(&mut line)?;
+            buffer.clear();
+            let bytes_read = reader.read_until(b'\n', &mut buffer).unwrap(); // TODO panic
             if bytes_read != 0 {
+                let (line, _) = ENCODING.decode_without_bom_handling(&buffer);
                 self.process_line(&line);
             } else {
-                break Ok(());
+                break;
             }
         }
     }
 
-    fn process_line(&self, line: &String) {
+    fn process_line(&self, line: &str) {
         if let Some(event) = line.parse::<LogEvent>().ok() {
             self.send_event_to_loaded_listeners(&event);
             self.send_event_to_listeners(&event);
@@ -156,27 +194,6 @@ impl LogObserver {
                 }
             }
         }
-    }
-
-    pub(crate) fn add_loaded_listener(&mut self, listener: LoadedListener) {
-        self.loaded_listeners.write().unwrap().push(listener);
-    }
-
-    pub fn add_listener(&mut self) -> impl Stream<Item = LogEvent> {
-        let (sender, receiver) = unbounded_channel();
-        self.listeners.write().unwrap().push(sender);
-        UnboundedReceiverStream::new(receiver)
-    }
-
-    pub fn add_named_listener(&mut self, name: impl Into<String>) -> impl Stream<Item = LogEvent> {
-        let (sender, receiver) = unbounded_channel();
-        self.named_listeners
-            .write()
-            .unwrap()
-            .entry(name.into())
-            .or_default()
-            .push(sender);
-        UnboundedReceiverStream::new(receiver)
     }
 }
 

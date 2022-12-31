@@ -9,14 +9,15 @@ edition = "2021"
 name = "minect"
 
 [dependencies]
+encoding_rs = "0.8"
 flate2 = "1"
 fs3 = "0.5"
 hematite-nbt = { version = "0.5" }
 log = "0.4"
-notify = "4.0"
+notify = "5"
 num-traits = "0.2"
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.8", features = [
+tokio = { version = "1", features = [
   "fs",
   "io-util",
   "rt-multi-thread",
@@ -27,8 +28,8 @@ tokio = { version = "1.8", features = [
 tokio-stream = { version = "0.1" }
 
 [dev-dependencies]
-serial_test = "0.5"
-strum = { version = "0.21", features = ["derive"] }
+serial_test = "0.10"
+strum = { version = "0.24", features = ["derive"] }
 
 [build-dependencies]
 walkdir = "2"
