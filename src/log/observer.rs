@@ -33,9 +33,10 @@ use std::{
     thread,
 };
 use tokio::{
-    sync::mpsc::{error::SendError, unbounded_channel, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{error::SendError, unbounded_channel, UnboundedSender},
     time::Duration,
 };
+use tokio_stream::{wrappers::UnboundedReceiverStream, Stream};
 
 pub struct LogObserver {
     path: PathBuf,
@@ -161,13 +162,13 @@ impl LogObserver {
         self.loaded_listeners.write().unwrap().push(listener);
     }
 
-    pub fn add_listener(&mut self) -> UnboundedReceiver<LogEvent> {
+    pub fn add_listener(&mut self) -> impl Stream<Item = LogEvent> {
         let (sender, receiver) = unbounded_channel();
         self.listeners.write().unwrap().push(sender);
-        receiver
+        UnboundedReceiverStream::new(receiver)
     }
 
-    pub fn add_named_listener(&mut self, name: impl Into<String>) -> UnboundedReceiver<LogEvent> {
+    pub fn add_named_listener(&mut self, name: impl Into<String>) -> impl Stream<Item = LogEvent> {
         let (sender, receiver) = unbounded_channel();
         self.named_listeners
             .write()
@@ -175,7 +176,7 @@ impl LogObserver {
             .entry(name.into())
             .or_default()
             .push(sender);
-        receiver
+        UnboundedReceiverStream::new(receiver)
     }
 }
 

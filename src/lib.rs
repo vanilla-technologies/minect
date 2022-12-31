@@ -40,7 +40,7 @@ use std::{
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio_stream::Stream;
 
 pub struct MinecraftConnection {
     identifier: String,
@@ -87,11 +87,11 @@ impl MinecraftConnection {
         &self.datapack_dir
     }
 
-    pub fn add_listener(&mut self) -> UnboundedReceiver<LogEvent> {
+    pub fn add_listener(&mut self) -> impl Stream<Item = LogEvent> {
         self.get_log_observer().add_listener()
     }
 
-    pub fn add_named_listener(&mut self, name: impl Into<String>) -> UnboundedReceiver<LogEvent> {
+    pub fn add_named_listener(&mut self, name: impl Into<String>) -> impl Stream<Item = LogEvent> {
         self.get_log_observer().add_named_listener(name)
     }
 

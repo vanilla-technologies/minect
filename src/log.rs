@@ -258,6 +258,11 @@ impl FromStr for SummonNamedEntityOutput {
         from_str_opt(output).ok_or(())
     }
 }
+impl Display for SummonNamedEntityOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Summoned new {}", self.name)
+    }
+}
 
 /// Generates a Minecraft command that adds the given `tag` to the given `entity`.
 ///
@@ -307,6 +312,11 @@ impl FromStr for AddTagOutput {
             })
         }
         from_str_opt(output).ok_or(())
+    }
+}
+impl Display for AddTagOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Added tag '{}' to {}", self.tag, self.entity)
     }
 }
 
@@ -365,6 +375,15 @@ impl FromStr for QueryScoreboardOutput {
             })
         }
         from_str_opt(output).ok_or(())
+    }
+}
+impl Display for QueryScoreboardOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Added 0 to [{}] for {} (now {})",
+            self.scoreboard, self.entity, self.score
+        )
     }
 }
 

@@ -9,7 +9,7 @@ use minect::{
 use serial_test::serial;
 use std::{io, time::Duration};
 use tokio::time::timeout;
-use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
+use tokio_stream::StreamExt;
 
 const TEST_WORLD_DIR: &str = env!("TEST_WORLD_DIR");
 const TEST_LOG_FILE: &str = env!("TEST_LOG_FILE");
@@ -39,12 +39,13 @@ async fn test_add_tag_command() -> io::Result<()> {
     connection.inject_commands(&commands)?;
 
     // then:
-    let event = timeout(Duration::from_secs(5), events.recv())
+    let event = timeout(Duration::from_secs(5), events.next())
         .await?
         .unwrap();
     let output = event.output.parse::<AddTagOutput>().unwrap();
     assert_eq!(output.tag, tag);
     assert_eq!(output.entity, listener_name);
+    assert_eq!(output.to_string(), "Added tag 'success' to test");
 
     Ok(())
 }
@@ -67,21 +68,16 @@ async fn test_summon_named_entity_command() -> io::Result<()> {
     connection.inject_commands(&commands)?;
 
     // then:
-    let event = timeout(
+    let output = timeout(
         Duration::from_secs(5),
-        UnboundedReceiverStream::new(events)
-            .filter(|event| {
-                if let Ok(output) = event.output.parse::<SummonNamedEntityOutput>() {
-                    output.name == name
-                } else {
-                    false
-                }
-            })
+        events
+            .filter_map(|event| event.output.parse::<SummonNamedEntityOutput>().ok())
+            .filter(|output| output.name == name)
             .next(),
     )
     .await?
     .unwrap();
-    assert_eq!(event.output, "Summoned new success");
+    assert_eq!(output.to_string(), "Summoned new success");
 
     Ok(())
 }
@@ -112,7 +108,7 @@ async fn test_query_scoreboard_command() -> io::Result<()> {
     // then:
     let output = timeout(
         Duration::from_secs(5),
-        UnboundedReceiverStream::new(events)
+        events
             .filter_map(|event| event.output.parse::<QueryScoreboardOutput>().ok())
             .next(),
     )
