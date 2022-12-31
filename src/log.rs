@@ -259,7 +259,7 @@ impl FromStr for SummonNamedEntityOutput {
     }
 }
 
-/// Generates a Minecraft command that adds a tag the score of `entity` in `scoreboard`.
+/// Generates a Minecraft command that adds the given `tag` to the given `entity`.
 ///
 /// The resulting [LogEvent::output] can be parsed into an [AddTagOutput].
 ///
@@ -270,8 +270,8 @@ impl FromStr for SummonNamedEntityOutput {
 /// entity. This saves the trouble of removing the tag again, because the command block minecart is
 /// killed after the command is executed. Otherwise the tag will likely need to be removed, because
 /// adding a tag twice to the same entity fails, thus preventing further [LogEvent]s.
-pub fn add_tag_command(entity: impl Display, scoreboard: impl Display) -> String {
-    format!("tag {} add {}", entity, scoreboard)
+pub fn add_tag_command(entity: impl Display, tag: impl Display) -> String {
+    format!("tag {} add {}", entity, tag)
 }
 
 /// The output of a [add_tag_command()]. This can be parsed from a [LogEvent::output].
