@@ -1,3 +1,4 @@
+use log::LevelFilter;
 use minect::{
     log::{
         add_tag_command, enable_logging_command, logged_command, named_logged_command,
@@ -7,6 +8,7 @@ use minect::{
     MinecraftConnection,
 };
 use serial_test::serial;
+use simplelog::{Config, SimpleLogger};
 use std::{io, time::Duration};
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
@@ -20,9 +22,14 @@ fn new_connection() -> MinecraftConnection {
         .build()
 }
 
+fn before_test() {
+    let _ = SimpleLogger::init(LevelFilter::Trace, Config::default());
+}
+
 #[tokio::test]
 #[serial]
 async fn test_add_tag_command() -> io::Result<()> {
+    before_test();
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
@@ -53,6 +60,7 @@ async fn test_add_tag_command() -> io::Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_summon_named_entity_command() -> io::Result<()> {
+    before_test();
     // given:
     let mut connection = new_connection();
     let name = "success";
@@ -85,6 +93,7 @@ async fn test_summon_named_entity_command() -> io::Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_query_scoreboard_command() -> io::Result<()> {
+    before_test();
     // given:
     let mut connection = new_connection();
     let scoreboard = "minect_test_global";
