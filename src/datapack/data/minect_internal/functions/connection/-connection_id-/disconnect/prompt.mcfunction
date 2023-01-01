@@ -16,4 +16,4 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-tellraw @s [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Do you want to uninstall Minect or remove individual connections?\n "},{"text":"[Uninstall Minect]","clickEvent":{"action":"run_command","value":"/function minect:uninstall_completely"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"},{"text":" "},{"text":"[Remove individual connections]","clickEvent":{"action":"run_command","value":"/function minect:disconnect"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"}]
+execute if entity @e[type=area_effect_cloud,tag=minect_connection,tag=minect_connection+-connection_id-] run tellraw @s [{"text":" - "},{"text":"[-connection_id-]","clickEvent":{"action":"run_command","value":"/execute as @e[type=area_effect_cloud,tag=minect_connection,tag=minect_connection+-connection_id-] run function minect:disconnect_self"},"hoverEvent":{"action":"show_text","contents":"Click to remove"},"color":"aqua"}]

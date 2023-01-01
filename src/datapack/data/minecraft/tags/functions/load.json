@@ -1,5 +1,5 @@
 {
     "values": [
-        "minect:load"
+        "minect_internal:load"
     ]
 }

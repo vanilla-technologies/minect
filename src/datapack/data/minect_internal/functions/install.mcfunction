@@ -16,7 +16,14 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-kill @e[type=command_block_minecart,tag=minect_impulse,nbt=!{LastExecution: 1L}]
+scoreboard players set version minect_version 1
 
-scoreboard players add reload_timer minect_global 1
-execute if score reload_timer minect_global >= reload_delay minect_config run function minect:reload
+scoreboard objectives add minect_global dummy
+scoreboard objectives add minect_chunk_pos dummy
+scoreboard objectives add minect_entity_pos dummy
+
+scoreboard objectives add minect_const dummy
+scoreboard players set 16 minect_const 16
+
+scoreboard objectives add minect_config dummy
+scoreboard players set update_delay minect_config 1

@@ -44,26 +44,26 @@ impl IoErrorAtPath {
     pub fn new(
         message: impl Into<String>,
         path: impl Into<PathBuf>,
-        cause: io::Error,
+        cause: impl Into<io::Error>,
     ) -> IoErrorAtPath {
         IoErrorAtPath {
             message: message.into(),
             path: path.into(),
-            cause,
+            cause: cause.into(),
         }
     }
 
-    pub fn mapper(
+    pub fn mapper<I: Into<io::Error>>(
         message: impl Into<String>,
         path: impl Into<PathBuf>,
-    ) -> impl FnOnce(io::Error) -> IoErrorAtPath {
+    ) -> impl FnOnce(I) -> IoErrorAtPath {
         |cause| IoErrorAtPath::new(message, path, cause)
     }
 }
-pub(crate) fn io_error(
+pub(crate) fn io_error<I: Into<io::Error>>(
     message: impl Into<String>,
     path: impl Into<PathBuf>,
-) -> impl FnOnce(io::Error) -> IoErrorAtPath {
+) -> impl FnOnce(I) -> IoErrorAtPath {
     IoErrorAtPath::mapper(message, path)
 }
 
@@ -86,6 +86,11 @@ pub(crate) fn write(path: impl AsRef<Path>, contents: &str) -> Result<(), IoErro
 
 pub(crate) fn create_dir_all(path: impl AsRef<Path>) -> Result<(), IoErrorAtPath> {
     fs::create_dir_all(&path).map_err(io_error("Failed to create directory", path.as_ref()))?;
+    Ok(())
+}
+
+pub(crate) fn remove_dir(path: impl AsRef<Path>) -> Result<(), IoErrorAtPath> {
+    fs::remove_dir(&path).map_err(io_error("Failed to remove directory", path.as_ref()))?;
     Ok(())
 }
 

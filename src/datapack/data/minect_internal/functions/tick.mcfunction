@@ -16,4 +16,7 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-tellraw @s [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Do you want to uninstall Minect or remove individual connections?\n "},{"text":"[Uninstall Minect]","clickEvent":{"action":"run_command","value":"/function minect:uninstall_completely"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"},{"text":" "},{"text":"[Remove individual connections]","clickEvent":{"action":"run_command","value":"/function minect:disconnect"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"}]
+kill @e[type=command_block_minecart,tag=minect_impulse,nbt=!{LastExecution: 1L}]
+
+scoreboard players add update_timer minect_global 1
+execute if score update_timer minect_global >= update_delay minect_config run function minect_internal:update

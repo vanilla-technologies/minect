@@ -16,4 +16,5 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-tellraw @s [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Do you want to uninstall Minect or remove individual connections?\n "},{"text":"[Uninstall Minect]","clickEvent":{"action":"run_command","value":"/function minect:uninstall_completely"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"},{"text":" "},{"text":"[Remove individual connections]","clickEvent":{"action":"run_command","value":"/function minect:disconnect"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"}]
+scoreboard players set connect_choose_chunk minect_global 1
+function #minect_internal:connect/choose_chunk

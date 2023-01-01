@@ -16,4 +16,14 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-tellraw @s [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Do you want to uninstall Minect or remove individual connections?\n "},{"text":"[Uninstall Minect]","clickEvent":{"action":"run_command","value":"/function minect:uninstall_completely"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"},{"text":" "},{"text":"[Remove individual connections]","clickEvent":{"action":"run_command","value":"/function minect:disconnect"},"hoverEvent":{"action":"show_text","contents":"Click to execute"},"color":"aqua"}]
+execute store result score @s minect_entity_pos run data get entity @s Pos[0] 1
+scoreboard players operation @s minect_chunk_pos = @s minect_entity_pos
+scoreboard players operation @s minect_entity_pos %= 16 minect_const
+scoreboard players operation @s minect_chunk_pos -= @s minect_entity_pos
+execute store result entity @s Pos[0] double 1 run scoreboard players get @s minect_chunk_pos
+
+execute store result score @s minect_entity_pos run data get entity @s Pos[2] 1
+scoreboard players operation @s minect_chunk_pos = @s minect_entity_pos
+scoreboard players operation @s minect_entity_pos %= 16 minect_const
+scoreboard players operation @s minect_chunk_pos -= @s minect_entity_pos
+execute store result entity @s Pos[2] double 1 run scoreboard players get @s minect_chunk_pos

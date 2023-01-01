@@ -71,17 +71,22 @@ fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
         new_command_block(
             CommandBlockKind::Repeat,
             None,
-            "execute \
+            format!(
+                "execute \
                 positioned ~ ~-1 ~ \
                 align xyz \
-                unless entity @e[type=area_effect_cloud,dx=1,dy=1,dz=1,tag=minect_connection] \
-                run summon area_effect_cloud ~.5 ~.5 ~.5 {\
-                    Tags:[minect_connection],\
-                    Age:-2147483648,\
-                    Duration:-1,\
-                    WaitTime:-2147483648,\
-                    }"
-            .to_string(),
+                unless entity @e[\
+                    type=area_effect_cloud,\
+                    dx=1,dy=1,dz=1,\
+                    tag=minect_connection,tag=minect_connection+{connection_id}\
+                ] \
+                run \
+                summon area_effect_cloud ~.5 ~.5 ~.5 {{\
+                    Duration:2147483647,\
+                    Tags:[minect_connection,minect_connection+{connection_id}]\
+                }}",
+                connection_id = identifier
+            ),
             false,
             true,
             Direction3::Down,
@@ -94,6 +99,7 @@ const CMD_BLOCK_OFFSET: Coordinate3<i32> = Coordinate3(0, 0, 1);
 /// Minecraft limits the number of blocks that can be targeted by a fill command (which we use to
 /// clean up) to 32768. X is limited to 16 and Z to 15 to stay in the chunk. The Y limit is
 /// therefor calculated as: floor(32768 / 16 / 15) = 136
+/// This is also hardcoded in the installer to show an appropriate bounding box.
 const MAX_SIZE: Coordinate3<i32> = Coordinate3(16, 136, 15);
 const MAX_LEN: usize = MAX_SIZE.0 as usize * MAX_SIZE.1 as usize * MAX_SIZE.2 as usize;
 

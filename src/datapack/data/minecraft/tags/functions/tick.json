@@ -1,5 +1,5 @@
 {
     "values": [
-        "minect:tick"
+        "minect_internal:tick"
     ]
 }

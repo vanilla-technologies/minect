@@ -16,9 +16,9 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-scoreboard players set version minect_version 1
+scoreboard objectives add minect_version dummy
+execute unless score version minect_version matches 1.. run function minect_internal:install
 
-scoreboard objectives add minect_global dummy
-
-scoreboard objectives add minect_config dummy
-scoreboard players set reload_delay minect_config 1
+# TODO: Instead of using function tags we could patch this function. That way there is a bit less clutter that is alphabetically before the functions in the minect namespace.
+scoreboard players set connect_prompt minect_global 1
+function #minect_internal:connect/prompt

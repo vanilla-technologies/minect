@@ -1,3 +1,4 @@
+use futures::executor::block_on;
 use log::LevelFilter;
 use minect::{
     log::{
@@ -9,7 +10,7 @@ use minect::{
 };
 use serial_test::serial;
 use simplelog::{Config, SimpleLogger};
-use std::{io, time::Duration};
+use std::{io, sync::Once, time::Duration};
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
@@ -22,8 +23,18 @@ fn new_connection() -> MinecraftConnection {
         .build()
 }
 
+static BEFORE_ALL_TESTS: Once = Once::new();
+
+fn before_all_tests() {
+    SimpleLogger::init(LevelFilter::Trace, Config::default()).unwrap();
+
+    let mut connection = new_connection();
+    eprintln!("If you are connecting for the first time please execute /reload in Minecraft.");
+    block_on(connection.connect()).unwrap();
+}
+
 fn before_test() {
-    let _ = SimpleLogger::init(LevelFilter::Trace, Config::default());
+    BEFORE_ALL_TESTS.call_once(|| before_all_tests());
 }
 
 #[tokio::test]

@@ -99,12 +99,12 @@ struct LogObserverBackend {
 impl LogObserverBackend {
     fn observe_log(self) {
         let (event_sender, event_reciever) = channel();
-        let mut watcher = recommended_watcher(event_sender).unwrap(); // TODO panic
+        let mut watcher = recommended_watcher(event_sender).unwrap(); // may panic
         let watch_path = self.path.parent().unwrap_or(&self.path);
-        watcher.watch(watch_path, RecursiveMode::Recursive).unwrap(); // TODO panic
+        watcher.watch(watch_path, RecursiveMode::Recursive).unwrap(); // may panic
 
-        let mut file = File::open(&self.path).unwrap(); // TODO panic
-        file.seek(SeekFrom::End(0)).unwrap(); // TODO panic
+        let mut file = File::open(&self.path).unwrap(); // may panic
+        file.seek(SeekFrom::End(0)).unwrap(); // may panic
         let mut reader = BufReader::new(file);
         self.continue_to_read_file(&mut reader);
 
@@ -139,7 +139,7 @@ impl LogObserverBackend {
         let mut buffer = Vec::new();
         loop {
             buffer.clear();
-            let bytes_read = reader.read_until(b'\n', &mut buffer).unwrap(); // TODO panic
+            let bytes_read = reader.read_until(b'\n', &mut buffer).unwrap(); // may panic
             if bytes_read != 0 {
                 let (line, _) = ENCODING.decode_without_bom_handling(&buffer);
                 self.process_line(&line);

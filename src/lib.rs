@@ -16,21 +16,30 @@
 // You should have received a copy of the GNU General Public License along with Minect.
 // If not, see <http://www.gnu.org/licenses/>.
 
+#[macro_use]
+mod macros;
+
+mod connect;
 mod geometry3;
 mod io;
 mod json;
 pub mod log;
+mod on_drop;
 mod placement;
 mod structure;
 mod utils;
 
+pub use crate::connect::ConnectError;
+
 use crate::{
+    connect::connect,
     io::{create, create_dir_all, io_error, remove_dir_all, remove_file, write, IoErrorAtPath},
     log::{
         enable_logging_command, observer::LogObserver, reset_logging_command,
         summon_named_entity_command, LogEvent, SummonNamedEntityOutput,
     },
     placement::generate_structure,
+    structure::nbt::Structure,
     utils::io_invalid_data,
 };
 use ::log::{error, trace};
@@ -43,7 +52,6 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-use structure::nbt::Structure;
 use tokio_stream::Stream;
 
 pub struct MinecraftConnectionBuilder {
@@ -93,6 +101,14 @@ fn log_file_from_world_dir(world_dir: &PathBuf) -> PathBuf {
     minecraft_dir.join("logs/latest.log")
 }
 
+macro_rules! extract_datapack_file {
+    ($output_path:expr, $relative_path:expr) => {{
+        let path = $output_path.join($relative_path);
+        let contents = include_datapack_template!($relative_path);
+        write(&path, &contents)
+    }};
+}
+
 pub struct MinecraftConnection {
     identifier: String,
     structures_dir: PathBuf,
@@ -138,6 +154,44 @@ impl MinecraftConnection {
         &self.datapack_dir
     }
 
+    pub async fn connect(&mut self) -> Result<(), ConnectError> {
+        connect(self).await
+    }
+
+    /// Creates the Minect datapack at directory [Self::get_datapack_dir()].
+    pub fn create_datapack(&self) -> Result<(), IoErrorAtPath> {
+        macro_rules! extract {
+            ($relative_path:expr) => {
+                extract_datapack_file!(self.datapack_dir, $relative_path)
+            };
+        }
+
+        extract!("data/minecraft/tags/functions/load.json")?;
+        extract!("data/minecraft/tags/functions/tick.json")?;
+        extract!("data/minect_internal/functions/connect/align_to_chunk.mcfunction")?;
+        extract!("data/minect_internal/functions/connect/remove_connector.mcfunction")?;
+        extract!("data/minect_internal/functions/install.mcfunction")?;
+        extract!("data/minect_internal/functions/load.mcfunction")?;
+        extract!("data/minect_internal/functions/pulse_redstone.mcfunction")?;
+        extract!("data/minect_internal/functions/reload.mcfunction")?;
+        extract!("data/minect_internal/functions/tick.mcfunction")?;
+        extract!("data/minect_internal/functions/update.mcfunction")?;
+        extract!("data/minect/functions/connect/choose_chunk.mcfunction")?;
+        extract!("data/minect/functions/disconnect_self.mcfunction")?;
+        extract!("data/minect/functions/disconnect.mcfunction")?;
+        extract!("data/minect/functions/enable_logging.mcfunction")?;
+        extract!("data/minect/functions/reset_logging.mcfunction")?;
+        extract!("data/minect/functions/uninstall_completely.mcfunction")?;
+        extract!("data/minect/functions/uninstall.mcfunction")?;
+        extract!("pack.mcmeta")?;
+        Ok(())
+    }
+
+    /// Removes the Minect datapack at directory [Self::get_datapack_dir()].
+    pub fn remove_datapack(&self) -> Result<(), IoErrorAtPath> {
+        remove_dir_all(&self.datapack_dir)
+    }
+
     pub fn inject_commands(
         &mut self,
         commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
@@ -180,43 +234,6 @@ impl MinecraftConnection {
         self.structures_dir.join(format!("{}.nbt", id))
     }
 
-    /// Creates the datapack used to operate the connection in Minecraft at the directory
-    /// [Self::get_datapack_dir()].
-    pub fn create_datapack(&self) -> Result<(), IoErrorAtPath> {
-        macro_rules! include_datapack_template {
-            ($relative_path:expr) => {
-                include_str!(concat!(env!("OUT_DIR"), "/src/datapack/", $relative_path))
-            };
-        }
-        macro_rules! extract_datapack_file {
-            ($relative_path:expr) => {
-                write(
-                    self.datapack_dir.join($relative_path),
-                    include_datapack_template!($relative_path),
-                )
-            };
-        }
-
-        extract_datapack_file!("data/minecraft/tags/functions/load.json")?;
-        extract_datapack_file!("data/minecraft/tags/functions/tick.json")?;
-        extract_datapack_file!("data/minect/functions/enable_logging.mcfunction")?;
-        extract_datapack_file!("data/minect/functions/install.mcfunction")?;
-        extract_datapack_file!("data/minect/functions/load.mcfunction")?;
-        extract_datapack_file!("data/minect/functions/pulse_redstone.mcfunction")?;
-        extract_datapack_file!("data/minect/functions/reload.mcfunction")?;
-        extract_datapack_file!("data/minect/functions/reset_logging.mcfunction")?;
-        extract_datapack_file!("data/minect/functions/tick.mcfunction")?;
-        extract_datapack_file!("data/minect/functions/uninstall.mcfunction")?;
-        extract_datapack_file!("pack.mcmeta")?;
-
-        Ok(())
-    }
-
-    /// Removes the datapack used to operate the connection in Minecraft at the directory
-    /// [Self::get_datapack_dir()].
-    pub fn remove_datapack(&self) -> Result<(), IoErrorAtPath> {
-        remove_dir_all(&self.datapack_dir)
-    }
     pub fn add_listener(&mut self) -> impl Stream<Item = LogEvent> {
         self.get_log_observer().add_listener()
     }
@@ -334,7 +351,7 @@ fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), IoErrorAtP
 #[derive(Debug)]
 pub enum InjectCommandsError {
     Io(IoErrorAtPath),
-    // TODO: Add error for injecting to many commands instead of ignoring them
+    // TODO: Add error for injecting too many commands instead of ignoring them
 }
 impl From<IoErrorAtPath> for InjectCommandsError {
     fn from(value: IoErrorAtPath) -> InjectCommandsError {

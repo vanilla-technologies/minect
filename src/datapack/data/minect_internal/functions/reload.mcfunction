@@ -16,5 +16,4 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-scoreboard objectives add minect_version dummy
-execute unless score version minect_version matches 1.. run function minect:install
+reload

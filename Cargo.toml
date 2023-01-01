@@ -12,25 +12,23 @@ name = "minect"
 encoding_rs = "0.8"
 flate2 = "1"
 fs3 = "0.5"
-hematite-nbt = { version = "0.5" }
+futures = "0.3"
+hematite-nbt = "0.5"
+indexmap = { version = "1", features = ["serde"] }
 log = "0.4"
 notify = "5"
 num-traits = "0.2"
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = [
-  "fs",
-  "io-util",
-  "rt-multi-thread",
-  "macros",
-  "sync",
-  "time",
-] }
-tokio-stream = { version = "0.1" }
+serde_json = "1"
+tokio = "1"
+tokio-stream = "0.1"
+walkdir = "2"
 
 [dev-dependencies]
 serial_test = "0.10"
 simplelog = "0.12"
 strum = { version = "0.24", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 
 [build-dependencies]
 walkdir = "2"

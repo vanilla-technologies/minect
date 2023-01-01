@@ -16,6 +16,4 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-scoreboard players set reload_timer minect_global 0
-# reload
-execute at @e[type=area_effect_cloud,tag=minect_connection] positioned ~ ~-2 ~ run function minect:pulse_redstone
+execute if score connect_prompt minect_global matches 1 unless entity @e[type=area_effect_cloud,tag=minect_connection,tag=minect_connection+-connection_id-] run function minect_internal:connection/-connection_id-/connect/prompt_unchecked
