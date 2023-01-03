@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-execute as @e[type=area_effect_cloud,tag=minect_connection] run function minect:remove_connection
+execute as @e[type=area_effect_cloud,tag=minect_connection] run function minect:disconnect_self
 
 scoreboard objectives remove minect_chunk_pos
 scoreboard objectives remove minect_config
