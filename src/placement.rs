@@ -18,6 +18,7 @@
 
 use crate::{
     geometry3::{Coordinate3, Direction3, Orientation3},
+    json::{create_json_text_component, escape_json},
     structure::{
         nbt::Structure, new_command_block, new_structure_block, Block, CommandBlockKind,
         StructureBuilder,
@@ -83,9 +84,11 @@ fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
                 run \
                 summon area_effect_cloud ~.5 ~.5 ~.5 {{\
                     Duration:2147483647,\
+                    CustomName:\"{custom_name}\",\
                     Tags:[minect_connection,minect_connection+{connection_id}]\
                 }}",
-                connection_id = identifier
+                connection_id = identifier,
+                custom_name = escape_json(&create_json_text_component(identifier)),
             ),
             false,
             true,
