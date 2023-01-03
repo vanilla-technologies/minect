@@ -1,7 +1,7 @@
 # Minect is library that allows a program to connect to a running Minecraft instance without
 # requiring any Minecraft mods.
 #
-# © Copyright (C) 2021, 2022 Adrodoc <adrodoc55@googlemail.com> & skess42 <skagaros@gmail.com>
+# © Copyright (C) 2021-2023 Adrodoc <adrodoc55@googlemail.com> & skess42 <skagaros@gmail.com>
 #
 # This file is part of Minect.
 #
