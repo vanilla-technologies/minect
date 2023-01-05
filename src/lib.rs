@@ -352,10 +352,16 @@ impl Command {
         }
     }
 
+    pub fn get_name(&self) -> Option<&str> {
+        self.name.as_ref().map(|it| it.as_str())
+    }
+
+    pub fn get_command(&self) -> &str {
+        &self.command
+    }
+
     fn get_name_as_json(&self) -> Option<String> {
-        self.name
-            .as_ref()
-            .map(|name| create_json_text_component(&name))
+        self.get_name().map(create_json_text_component)
     }
 }
 
