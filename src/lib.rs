@@ -42,14 +42,14 @@ use crate::{
     structure::nbt::Structure,
     utils::io_invalid_data,
 };
-use ::log::{error, trace};
+use ::log::error;
 use fs3::FileExt;
+use io::rename;
 use std::{
     fmt::Display,
     fs::{File, OpenOptions},
-    io::{BufWriter, ErrorKind, Read, Seek, SeekFrom, Write},
+    io::{BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
-    time::{Duration, Instant},
 };
 use tokio_stream::Stream;
 
@@ -303,36 +303,6 @@ fn create_structure_file(
     let file = create(path)?;
     let mut writer = BufWriter::new(file);
     nbt::to_gzip_writer(&mut writer, &structure, None).unwrap();
-    Ok(())
-}
-
-/// Rename a file or directory to a new name, replacing the original file if `to` already exists.
-///
-/// On Windows we get a permission denied error if Minecraft is currently reading `to`. This is
-/// expected, because Minect attempts to load the next structure file periodically from within
-/// Minecraft. To work around this we simply try again and again until we get a different error or
-/// it took us a whole game tick, in which case there is likely another reason for access denied.
-fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), IoErrorAtPath> {
-    const TIMEOUT: Duration = Duration::from_millis(50); // A Minecraft game tick takes 50ms
-    let start = Instant::now();
-    let mut attempt = 1;
-    while let Err(error) = std::fs::rename(&from, &to) {
-        let elapsed = start.elapsed();
-        let message = if error.kind() != ErrorKind::PermissionDenied {
-            "Failed to replace file".to_string()
-        } else if elapsed >= TIMEOUT {
-            format!(
-                "Timeout after {}ms: {} attempts failed to replace file",
-                elapsed.as_millis(),
-                attempt
-            )
-        } else {
-            trace!("Attempt {} failed to replace file", attempt);
-            attempt += 1;
-            continue;
-        };
-        return Err(IoErrorAtPath::new(message, to.as_ref(), error));
-    }
     Ok(())
 }
 

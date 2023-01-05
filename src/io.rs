@@ -103,3 +103,8 @@ pub(crate) fn remove_file(path: impl AsRef<Path>) -> Result<(), IoErrorAtPath> {
     fs::remove_file(&path).map_err(io_error("Failed to remove file", path.as_ref()))?;
     Ok(())
 }
+
+pub(crate) fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), IoErrorAtPath> {
+    fs::rename(&from, &to).map_err(io_error("Failed to rename file", from.as_ref()))?;
+    Ok(())
+}
