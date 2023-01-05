@@ -33,7 +33,9 @@ pub use crate::connect::ConnectError;
 
 use crate::{
     connect::connect,
-    io::{create, create_dir_all, io_error, remove_dir_all, remove_file, write, IoErrorAtPath},
+    io::{
+        create, create_dir_all, io_error, remove_dir_all, remove_file, rename, write, IoErrorAtPath,
+    },
     log::{
         enable_logging_command, observer::LogObserver, reset_logging_command,
         summon_named_entity_command, LogEvent, SummonNamedEntityOutput,
@@ -44,7 +46,7 @@ use crate::{
 };
 use ::log::error;
 use fs3::FileExt;
-use io::rename;
+use json::create_json_text_component;
 use std::{
     fmt::Display,
     fs::{File, OpenOptions},
@@ -193,7 +195,7 @@ impl MinecraftConnection {
 
     pub fn inject_commands(
         &mut self,
-        commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
+        commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = Command>>,
     ) -> Result<(), InjectCommandsError> {
         if !self.datapack_dir.is_dir() {
             self.create_datapack()?;
@@ -331,12 +333,38 @@ impl From<InjectCommandsError> for std::io::Error {
     }
 }
 
+pub struct Command {
+    name: Option<String>,
+    command: String,
+}
+impl Command {
+    pub fn new(command: impl Into<String>) -> Command {
+        Command {
+            name: None,
+            command: command.into(),
+        }
+    }
+
+    pub fn named(name: impl Into<String>, command: impl Into<String>) -> Command {
+        Command {
+            name: Some(name.into()),
+            command: command.into(),
+        }
+    }
+
+    fn get_name_as_json(&self) -> Option<String> {
+        self.name
+            .as_ref()
+            .map(|name| create_json_text_component(&name))
+    }
+}
+
 struct LoadedListener {
     structures_dir: PathBuf,
 }
 impl LoadedListener {
     fn on_event(&self, event: LogEvent) {
-        if let Some(id) = parse_loaded_output(&event.output) {
+        if let Some(id) = parse_loaded_output(&event) {
             let structure_file = self.get_structure_file(id);
             if let Err(error) = remove_file(&structure_file) {
                 error!("{}", error);
@@ -355,27 +383,32 @@ impl LoadedListener {
     }
 }
 
+const LOADED_LISTENER_NAME: &str = "minect_loaded";
 const STRUCTURE_LOADED_OUTPUT_PREFIX: &str = "minect_loaded_";
 
-fn parse_loaded_output(output: &str) -> Option<u64> {
-    let output = output.parse::<SummonNamedEntityOutput>().ok()?;
+fn parse_loaded_output(event: &LogEvent) -> Option<u64> {
+    if event.executor != LOADED_LISTENER_NAME {
+        return None;
+    }
+    let output = event.output.parse::<SummonNamedEntityOutput>().ok()?;
     let id = &output.name.strip_prefix(STRUCTURE_LOADED_OUTPUT_PREFIX)?;
     id.parse().ok()
 }
 
 fn prepend_loaded_command(
     id: u64,
-    commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = impl ToString>>,
-) -> (impl Iterator<Item = String>, usize) {
+    commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = Command>>,
+) -> (impl Iterator<Item = Command>, usize) {
     let loaded_cmds = [
-        enable_logging_command(),
-        summon_named_entity_command(&format!("{}{}", STRUCTURE_LOADED_OUTPUT_PREFIX, id)),
-        reset_logging_command(),
+        Command::new(enable_logging_command()),
+        Command::named(
+            LOADED_LISTENER_NAME,
+            summon_named_entity_command(&format!("{}{}", STRUCTURE_LOADED_OUTPUT_PREFIX, id)),
+        ),
+        Command::new(reset_logging_command()),
     ];
     let commands = commands.into_iter();
     let commands_len = loaded_cmds.len() + commands.len();
-    let commands = loaded_cmds
-        .into_iter()
-        .chain(commands.map(|it| it.to_string()));
+    let commands = loaded_cmds.into_iter().chain(commands);
     (commands, commands_len)
 }

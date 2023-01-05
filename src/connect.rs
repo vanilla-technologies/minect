@@ -23,7 +23,7 @@ use crate::{
         LogEvent, SummonNamedEntityOutput,
     },
     on_drop::OnDrop,
-    read_incremented_id, InjectCommandsError, MinecraftConnection,
+    read_incremented_id, Command, InjectCommandsError, MinecraftConnection,
 };
 use indexmap::IndexSet;
 use log::error;
@@ -245,13 +245,17 @@ fn expand_template(template: &str, identifier: &str) -> String {
 
 async fn wait_for_connection(connection: &mut MinecraftConnection) -> Result<(), ConnectError> {
     const CONNECT_OUTPUT_PREFIX: &str = "minect_connect_";
+    const LISTENER_NAME: &str = "minect_connect";
 
-    let events = connection.add_listener();
+    let events = connection.add_named_listener(LISTENER_NAME);
 
-    connection.inject_commands(&[
-        enable_logging_command(),
-        summon_named_entity_command(&format!("{}success", CONNECT_OUTPUT_PREFIX)),
-        reset_logging_command(),
+    connection.inject_commands([
+        Command::new(enable_logging_command()),
+        Command::named(
+            LISTENER_NAME,
+            summon_named_entity_command(&format!("{}success", CONNECT_OUTPUT_PREFIX)),
+        ),
+        Command::new(reset_logging_command()),
     ])?;
 
     enum Output {

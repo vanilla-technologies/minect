@@ -23,7 +23,7 @@ use crate::{
         nbt::Structure, new_command_block, new_structure_block, Block, CommandBlockKind,
         StructureBuilder,
     },
-    NAMESPACE,
+    Command, NAMESPACE,
 };
 use log::warn;
 use std::{collections::BTreeMap, iter::FromIterator};
@@ -31,7 +31,7 @@ use std::{collections::BTreeMap, iter::FromIterator};
 pub(crate) fn generate_structure(
     identifier: &str,
     next_id: u64,
-    commands: impl Iterator<Item = String>,
+    commands: impl Iterator<Item = Command>,
     commands_len: usize,
 ) -> Structure {
     let mut builder = StructureBuilder::new();
@@ -118,7 +118,7 @@ const MAX_SIZE: Coordinate3<i32> = Coordinate3(16, 136, 15);
 const MAX_LEN: usize = MAX_SIZE.0 as usize * MAX_SIZE.1 as usize * MAX_SIZE.2 as usize;
 
 fn generate_command_blocks(
-    commands: impl Iterator<Item = String>,
+    commands: impl Iterator<Item = Command>,
     commands_len: usize,
 ) -> impl Iterator<Item = Block> {
     if commands_len > MAX_LEN {
@@ -161,8 +161,8 @@ fn generate_command_blocks(
         };
         new_command_block(
             kind,
-            None,
-            cmd_block.command,
+            cmd_block.command.get_name_as_json(),
+            cmd_block.command.command,
             false,
             true,
             cmd_block.direction,
@@ -172,7 +172,7 @@ fn generate_command_blocks(
 }
 
 pub(crate) struct CommandBlock {
-    pub(crate) command: String,
+    pub(crate) command: Command,
     pub(crate) coordinate: Coordinate3<i32>,
     pub(crate) direction: Direction3,
 }
@@ -191,7 +191,7 @@ fn get_clean_up_cmd_block(cmd_blocks: &[CommandBlock]) -> Option<CommandBlock> {
 
     let relative_min = -coordinate;
     let relative_max = relative_min + max_coordinate;
-    let command = format!(
+    let command = Command::new(format!(
         "fill ~{} ~{} ~{} ~{} ~{} ~{} air",
         relative_min.0,
         relative_min.1,
@@ -199,7 +199,7 @@ fn get_clean_up_cmd_block(cmd_blocks: &[CommandBlock]) -> Option<CommandBlock> {
         relative_max.0,
         relative_max.1,
         relative_max.2
-    );
+    ));
     Some(CommandBlock {
         command,
         coordinate,
