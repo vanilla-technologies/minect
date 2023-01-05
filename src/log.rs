@@ -127,7 +127,7 @@ impl Display for LoggedCommandBuilder {
         if let Some(custom_name) = &self.custom_name {
             write!(f, "\"CustomName\":\"{}\",", escape_json(custom_name))?;
         }
-        write!(f, "\"Command\":\"{}\",", self.command)?;
+        write!(f, "\"Command\":\"{}\",", escape_json(&self.command))?;
         f.write_str(
             "\
             \"Tags\":[\"minect_impulse\"],\
