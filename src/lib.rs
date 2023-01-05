@@ -43,7 +43,6 @@ use crate::{
     utils::io_invalid_data,
 };
 use ::log::{error, trace};
-use flate2::{write::GzEncoder, Compression};
 use fs3::FileExt;
 use std::{
     fmt::Display,
@@ -213,8 +212,6 @@ impl MinecraftConnection {
         let (commands, commands_len) = prepend_loaded_command(id, commands);
         let structure = generate_structure(&self.identifier, next_id, commands, commands_len);
 
-        create_uncachable_structure_file(self.get_structure_file(next_id))?;
-
         // To create the structure file as atomically as possible we first write to a temporary file
         // and then rename it, which is an atomic operation on most operating systems. If Minecraft
         // would attempt to load a half written file, it would likely cache the file as invalid
@@ -295,15 +292,6 @@ fn write_id(file: &mut File, path: impl AsRef<Path>, id: u64) -> Result<(), IoEr
     file.seek(SeekFrom::Start(0))
         .map_err(io_error("Failed to seek beginning of file", path.as_ref()))?;
     file.write_all(id.to_string().as_bytes())
-        .map_err(io_error("Failed to write to file", path.as_ref()))?;
-    Ok(())
-}
-
-/// Creates a file that is corrupted in such a way that Minecraft can't cache it
-fn create_uncachable_structure_file(path: impl AsRef<Path>) -> Result<(), IoErrorAtPath> {
-    let next_structure_file = create(&path)?;
-    GzEncoder::new(next_structure_file, Compression::none())
-        .write_all(&[u8::MAX, 0, 0])
         .map_err(io_error("Failed to write to file", path.as_ref()))?;
     Ok(())
 }

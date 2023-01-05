@@ -10,7 +10,6 @@ name = "minect"
 
 [dependencies]
 encoding_rs = "0.8"
-flate2 = "1"
 fs3 = "0.5"
 futures = "0.3"
 hematite-nbt = "0.5"

@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-execute at @s run fill ~ ~-3 ~ ~ ~1 ~ air
+execute at @s run fill ~ ~-5 ~ ~ ~1 ~ air
 execute at @s run forceload remove ~ ~
 kill @s
 tellraw @a [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Removed connection "},{"selector":"@s"}]

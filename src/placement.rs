@@ -57,15 +57,26 @@ fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
             properties: BTreeMap::new(),
             nbt: None,
         },
+        new_structure_block(
+            format!("{}:{}/{}", NAMESPACE, identifier, next_id),
+            "CORNER".to_string(),
+            Coordinate3(0, 2, 0),
+        ),
+        Block {
+            name: "minecraft:stone".to_string(),
+            pos: Coordinate3(0, 3, 0),
+            properties: BTreeMap::new(),
+            nbt: None,
+        },
         Block {
             name: "minecraft:redstone_block".to_string(),
-            pos: Coordinate3(0, 2, 0),
+            pos: Coordinate3(0, 4, 0),
             properties: BTreeMap::new(),
             nbt: None,
         },
         Block {
             name: "minecraft:activator_rail".to_string(),
-            pos: Coordinate3(0, 3, 0),
+            pos: Coordinate3(0, 5, 0),
             properties: BTreeMap::new(),
             nbt: None,
         },
@@ -93,7 +104,7 @@ fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
             false,
             true,
             Direction3::Down,
-            Coordinate3(0, 4, 0),
+            Coordinate3(0, 6, 0),
         ),
     ])
 }
