@@ -37,7 +37,7 @@ use crate::json::{create_json_text_component, escape_json};
 /// ```no_run
 /// # use minect::*;
 /// # use minect::log::*;
-/// let my_function_body = [
+/// let my_function = [
 ///     logged_command(enable_logging_command()),
 ///     logged_command(query_scoreboard_command("@p", "my_scoreboard")),
 ///     logged_command(reset_logging_command()),
@@ -45,6 +45,7 @@ use crate::json::{create_json_text_component, escape_json};
 ///
 /// // Generate datapack containing my_function ...
 ///
+/// // Call my_function (could also be done in Minecraft)
 /// # let mut connection = MinecraftConnection::builder("", "").build();
 /// connection.inject_commands(["function my_namespace:my_function"])?;
 /// # Ok::<(), std::io::Error>(())
@@ -67,12 +68,12 @@ pub fn named_logged_command(name: &str, command: impl Into<String>) -> String {
 /// [reset_logging_command()] is executed.
 ///
 /// This command sets the following three gamerules:
-/// 1. `logAdminCommands`: This must be `true` for Minecraft to log the output of commands to the
+/// 1. `logAdminCommands`: This must be `true` for Minecraft to write the output of commands to the
 ///    log file.
 /// 2. `commandBlockOutput`: This must be `true` for command blocks and command block minecarts to
-///    "publish" the outbut of their commands.
-/// 3. `sendCommandFeedback`: This is set to `false` to prevent the output to be logged in the chat
-///    which would likely annoy players.
+///    broadcast the output of their commands.
+/// 3. `sendCommandFeedback`: This is set to `false` to prevent the output to to also be written to
+///    the chat which would likely annoy players.
 ///
 /// This changes the logging configuration of the world in such a way that a player does not get any
 /// output from any command (including commands the player executes). So the original values of the
