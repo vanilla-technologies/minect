@@ -24,7 +24,7 @@ tokio-stream = "0.1"
 walkdir = "2"
 
 [dev-dependencies]
-serial_test = "0.10"
+serial_test = "1"
 simplelog = "0.12"
 strum = { version = "0.24", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
