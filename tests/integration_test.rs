@@ -1,7 +1,7 @@
 use futures::executor::block_on;
 use log::LevelFilter;
 use minect::{
-    log::{
+    command::{
         add_tag_command, enable_logging_command, logged_command, named_logged_command,
         query_scoreboard_command, reset_logging_command, summon_named_entity_command, AddTagOutput,
         QueryScoreboardOutput, SummonNamedEntityOutput,
@@ -57,7 +57,7 @@ async fn test_add_tag_command() -> io::Result<()> {
     let mut events = connection.add_named_listener(listener_name);
 
     // when:
-    connection.inject_commands(commands)?;
+    connection.execute_commands(commands)?;
 
     // then:
     let event = timeout(Duration::from_secs(5), events.next())
@@ -86,7 +86,7 @@ async fn test_summon_named_entity_command() -> io::Result<()> {
     let mut events = connection.add_named_listener(listener_name);
 
     // when:
-    connection.inject_commands(commands)?;
+    connection.execute_commands(commands)?;
 
     // then:
     let event = timeout(Duration::from_secs(5), events.next())
@@ -122,7 +122,7 @@ async fn test_query_scoreboard_command() -> io::Result<()> {
     let mut events = connection.add_named_listener(listener_name);
 
     // when:
-    connection.inject_commands(commands)?;
+    connection.execute_commands(commands)?;
 
     // then:
     let event = timeout(Duration::from_secs(5), events.next())

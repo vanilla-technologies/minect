@@ -1,9 +1,12 @@
 [package]
-name = "minect"
-version = "0.1.0"
+authors = ["Adrodoc <adrodoc55@googlemail.com>", "skess42 <skagaros@gmail.com>"]
+description = "A library that allows a Rust program to connect to a running Minecraft instance without requiring any Minecraft mods"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["minecraft", "vanilla"]
+license = "GPL-3.0-or-later"
+name = "minect"
+repository = "https://github.com/vanilla-technologies/minect"
+version = "0.1.0"
 
 [lib]
 name = "minect"

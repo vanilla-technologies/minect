@@ -123,8 +123,8 @@ fn generate_command_blocks(
 ) -> impl Iterator<Item = Block> {
     if commands_len > MAX_LEN {
         warn!(
-            "Attempted to injecting {} commands. \
-             Only the first {} commands will be injected. \
+            "Attempted to execute {} commands. \
+             Only the first {} commands will be executed. \
              The rest will be ignored.",
             commands_len, MAX_LEN
         );

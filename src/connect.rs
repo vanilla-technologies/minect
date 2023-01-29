@@ -17,13 +17,15 @@
 // If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    io::{create_dir_all, io_error, remove_dir, remove_dir_all, write, IoErrorAtPath},
-    log::{
+    command::{
         enable_logging_command, reset_logging_command, summon_named_entity_command, AddTagOutput,
-        LogEvent, SummonNamedEntityOutput,
+        SummonNamedEntityOutput,
     },
+    io::{create_dir_all, io_error, remove_dir, remove_dir_all, write, IoErrorAtPath},
+    log::LogEvent,
     on_drop::OnDrop,
-    read_incremented_id, Command, InjectCommandsError, MinecraftConnection,
+    read_incremented_id, Command, ExecuteCommandsError, ExecuteCommandsErrorInner,
+    MinecraftConnection,
 };
 use indexmap::IndexSet;
 use log::error;
@@ -38,6 +40,7 @@ use std::{
 use tokio_stream::StreamExt;
 use walkdir::WalkDir;
 
+/// The error returned from [MinecraftConnection::connect].
 #[derive(Debug)]
 pub struct ConnectError {
     inner: ConnectErrorInner,
@@ -51,6 +54,9 @@ impl ConnectError {
     fn new(inner: ConnectErrorInner) -> ConnectError {
         ConnectError { inner }
     }
+
+    /// Returns `true` if [connect](MinecraftConnection::connect) failed because the player
+    /// cancelled the installation in the interactive installer.
     pub fn is_cancelled(&self) -> bool {
         matches!(self.inner, ConnectErrorInner::Cancelled)
     }
@@ -58,6 +64,13 @@ impl ConnectError {
 impl From<IoErrorAtPath> for ConnectError {
     fn from(value: IoErrorAtPath) -> ConnectError {
         ConnectError::new(ConnectErrorInner::Io(value))
+    }
+}
+impl From<ExecuteCommandsError> for ConnectError {
+    fn from(value: ExecuteCommandsError) -> ConnectError {
+        match value.inner {
+            ExecuteCommandsErrorInner::Io(error) => error.into(),
+        }
     }
 }
 impl Display for ConnectError {
@@ -68,10 +81,14 @@ impl Display for ConnectError {
         }
     }
 }
-impl From<InjectCommandsError> for ConnectError {
-    fn from(value: InjectCommandsError) -> ConnectError {
-        match value {
-            InjectCommandsError::Io(error) => error.into(),
+impl std::error::Error for ConnectError {}
+impl From<ConnectError> for std::io::Error {
+    fn from(value: ConnectError) -> std::io::Error {
+        match value.inner {
+            ConnectErrorInner::Io(error) => std::io::Error::from(error),
+            ConnectErrorInner::Cancelled => {
+                std::io::Error::new(std::io::ErrorKind::ConnectionRefused, value)
+            }
         }
     }
 }
@@ -249,7 +266,7 @@ async fn wait_for_connection(connection: &mut MinecraftConnection) -> Result<(),
 
     let events = connection.add_named_listener(LISTENER_NAME);
 
-    connection.inject_commands([
+    connection.execute_commands([
         Command::new(enable_logging_command()),
         Command::named(
             LISTENER_NAME,

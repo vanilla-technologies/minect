@@ -35,6 +35,20 @@ use std::{
 use tokio::sync::mpsc::{error::SendError, unbounded_channel, UnboundedSender};
 use tokio_stream::{wrappers::UnboundedReceiverStream, Stream};
 
+/// A [LogObserver] reads Minecraft's log file and sends [LogEvent]s to registered listeners. It is
+/// used internally by a [MinecraftConnection](crate::MinecraftConnection), but can be used
+/// explicitely as well, when executing commands is not neccessary.
+///
+/// Internally [LogEvent]s are send to listeners via unbound channels. This means the streams
+/// returned by [add_listener](LogObserver::add_listener) and
+/// [add_named_listener](LogObserver::add_named_listener) should be polled regularly to avoid memory
+/// leaks.
+///
+/// [LogObserver] automatically detects and handles log file rotation and uses an appropriate
+/// character encoding on different platforms.
+///
+/// Each [LogObserver] has an associated background thread that does the actual reading. This thread
+/// is shut down after the [LogObserver] is dropped.
 pub struct LogObserver {
     loaded_listeners: Arc<RwLock<Vec<LoadedListener>>>,
     listeners: Arc<RwLock<Vec<UnboundedSender<LogEvent>>>>,
@@ -67,12 +81,25 @@ impl LogObserver {
         self.loaded_listeners.write().unwrap().push(listener);
     }
 
+    /// Returns a [Stream] of all [LogEvent]s. To remove the listener simply drop the stream.
+    ///
+    /// Internally the stream is backed by an unbound channel. This means it should be polled
+    /// regularly to avoid memory leaks.
     pub fn add_listener(&self) -> impl Stream<Item = LogEvent> {
         let (sender, receiver) = unbounded_channel();
         self.listeners.write().unwrap().push(sender);
         UnboundedReceiverStream::new(receiver)
     }
 
+    /// Returns a [Stream] of [LogEvent]s with [executor](LogEvent::executor) equal to the given
+    /// `name`. To remove the listener simply drop the stream.
+    ///
+    /// This can be more memory efficient than [add_listener](Self::add_listener), because only a
+    /// small subset of [LogEvent]s has to be buffered if not that many commands are executed with
+    /// the given `name`.
+    ///
+    /// Internally the stream is backed by an unbound channel. This means it should be polled
+    /// regularly to avoid memory leaks.
     pub fn add_named_listener(&self, name: impl Into<String>) -> impl Stream<Item = LogEvent> {
         let (sender, receiver) = unbounded_channel();
         self.named_listeners
