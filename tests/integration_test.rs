@@ -81,9 +81,7 @@ async fn test_summon_named_entity_command() -> io::Result<()> {
     let name = "success";
     let commands = [
         Command::new("say running test_summon_named_entity_command"),
-        Command::new(enable_logging_command()),
         Command::named(listener_name, summon_named_entity_command(name)),
-        Command::new(reset_logging_command()),
     ];
     let mut events = connection.add_named_listener(listener_name);
 
@@ -117,9 +115,7 @@ async fn test_query_scoreboard_command() -> io::Result<()> {
             "scoreboard players set {} {} 42",
             entity, scoreboard
         )),
-        Command::new(enable_logging_command()),
         Command::named(listener_name, query_scoreboard_command(entity, scoreboard)),
-        Command::new(reset_logging_command()),
         Command::new(format!("kill {}", entity)),
         Command::new(format!("scoreboard objectives remove {}", scoreboard)),
     ];

@@ -59,6 +59,7 @@ pub struct MinecraftConnectionBuilder {
     identifier: String,
     world_dir: PathBuf,
     log_file: Option<PathBuf>,
+    enable_logging_automatically: bool,
 }
 
 impl MinecraftConnectionBuilder {
@@ -70,6 +71,7 @@ impl MinecraftConnectionBuilder {
             identifier: identifier.into(),
             world_dir: world_dir.into(),
             log_file: None,
+            enable_logging_automatically: true,
         }
     }
 
@@ -78,12 +80,25 @@ impl MinecraftConnectionBuilder {
         self
     }
 
+    pub fn enable_logging_automatically(
+        mut self,
+        enable_logging_automatically: impl Into<bool>,
+    ) -> MinecraftConnectionBuilder {
+        self.enable_logging_automatically = enable_logging_automatically.into();
+        self
+    }
+
     pub fn build(self) -> MinecraftConnection {
         let world_dir = self.world_dir;
         let log_file = self
             .log_file
             .unwrap_or_else(|| log_file_from_world_dir(&world_dir));
-        MinecraftConnection::new(self.identifier, world_dir, log_file)
+        MinecraftConnection::new(
+            self.identifier,
+            world_dir,
+            log_file,
+            self.enable_logging_automatically,
+        )
     }
 }
 
@@ -117,6 +132,7 @@ pub struct MinecraftConnection {
     log_file: PathBuf,
     log_observer: Option<LogObserver>,
     loaded_listener_initialized: bool,
+    enable_logging_automatically: bool,
     _private: (),
 }
 
@@ -130,7 +146,12 @@ impl MinecraftConnection {
         MinecraftConnectionBuilder::new(identifier, world_dir)
     }
 
-    fn new(identifier: String, world_dir: PathBuf, log_file: PathBuf) -> MinecraftConnection {
+    fn new(
+        identifier: String,
+        world_dir: PathBuf,
+        log_file: PathBuf,
+        enable_logging_automatically: bool,
+    ) -> MinecraftConnection {
         MinecraftConnection {
             structures_dir: world_dir
                 .join("generated")
@@ -142,6 +163,7 @@ impl MinecraftConnection {
             log_file,
             log_observer: None,
             loaded_listener_initialized: false,
+            enable_logging_automatically,
             _private: (),
         }
     }
@@ -213,7 +235,8 @@ impl MinecraftConnection {
         let id = read_incremented_id(&mut id_file, &id_path)?;
         let next_id = id.wrapping_add(1);
 
-        let (commands, commands_len) = prepend_loaded_command(id, commands);
+        let (commands, commands_len) =
+            add_implicit_commands(id, commands, self.enable_logging_automatically);
         let structure = generate_structure(&self.identifier, next_id, commands, commands_len);
 
         // To create the structure file as atomically as possible we first write to a temporary file
@@ -403,20 +426,27 @@ fn parse_loaded_output(event: &LogEvent) -> Option<u64> {
     id.parse().ok()
 }
 
-fn prepend_loaded_command(
+fn add_implicit_commands(
     id: u64,
     commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = Command>>,
+    enable_logging_automatically: bool,
 ) -> (impl Iterator<Item = Command>, usize) {
-    let loaded_cmds = [
+    let mut first_cmds = Vec::from_iter([
         Command::new(enable_logging_command()),
         Command::named(
             LOADED_LISTENER_NAME,
             summon_named_entity_command(&format!("{}{}", STRUCTURE_LOADED_OUTPUT_PREFIX, id)),
         ),
-        Command::new(reset_logging_command()),
-    ];
+    ]);
+    let mut last_cmds = Vec::new();
+    if !enable_logging_automatically {
+        first_cmds.push(Command::new(reset_logging_command()));
+    } else {
+        last_cmds.push(Command::new(reset_logging_command()));
+    }
+
     let commands = commands.into_iter();
-    let commands_len = loaded_cmds.len() + commands.len();
-    let commands = loaded_cmds.into_iter().chain(commands);
+    let commands_len = first_cmds.len() + commands.len();
+    let commands = first_cmds.into_iter().chain(commands).chain(last_cmds);
     (commands, commands_len)
 }
