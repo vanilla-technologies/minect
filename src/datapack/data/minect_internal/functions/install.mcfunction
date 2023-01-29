@@ -27,3 +27,5 @@ scoreboard players set 16 minect_const 16
 
 scoreboard objectives add minect_config dummy
 scoreboard players set update_delay minect_config 1
+
+gamerule commandBlockOutput false
