@@ -16,5 +16,9 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-execute unless score enable_logging_count minect_global matches 1.. run function minect_internal:enable_logging_initially
-scoreboard players add enable_logging_count minect_global 1
+execute store result score commandBlockOutput minect_global run gamerule commandBlockOutput
+execute store result score logAdminCommands minect_global run gamerule logAdminCommands
+execute store result score sendCommandFeedback minect_global run gamerule sendCommandFeedback
+gamerule commandBlockOutput true
+gamerule logAdminCommands true
+gamerule sendCommandFeedback false

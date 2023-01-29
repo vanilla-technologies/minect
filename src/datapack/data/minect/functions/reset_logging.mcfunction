@@ -16,6 +16,5 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-execute unless score commandBlockOutput minect_global matches 1 run gamerule commandBlockOutput false
-execute unless score logAdminCommands minect_global matches 1 run gamerule logAdminCommands false
-execute if score sendCommandFeedback minect_global matches 1 run gamerule sendCommandFeedback true
+scoreboard players remove enable_logging_count minect_global 1
+execute unless score enable_logging_count minect_global matches 1.. run function minect_internal:reset_logging_finally
