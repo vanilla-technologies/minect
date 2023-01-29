@@ -2,6 +2,7 @@
 authors = ["Adrodoc <adrodoc55@googlemail.com>", "skess42 <skagaros@gmail.com>"]
 description = "A library that allows a Rust program to connect to a running Minecraft instance without requiring any Minecraft mods"
 edition = "2021"
+exclude = ["tests"]
 keywords = ["minecraft", "vanilla"]
 license = "GPL-3.0-or-later"
 name = "minect"
