@@ -63,17 +63,17 @@ impl LogObserver {
         }
     }
 
-    pub(crate) fn add_loaded_listener(&mut self, listener: LoadedListener) {
+    pub(crate) fn add_loaded_listener(&self, listener: LoadedListener) {
         self.loaded_listeners.write().unwrap().push(listener);
     }
 
-    pub fn add_listener(&mut self) -> impl Stream<Item = LogEvent> {
+    pub fn add_listener(&self) -> impl Stream<Item = LogEvent> {
         let (sender, receiver) = unbounded_channel();
         self.listeners.write().unwrap().push(sender);
         UnboundedReceiverStream::new(receiver)
     }
 
-    pub fn add_named_listener(&mut self, name: impl Into<String>) -> impl Stream<Item = LogEvent> {
+    pub fn add_named_listener(&self, name: impl Into<String>) -> impl Stream<Item = LogEvent> {
         let (sender, receiver) = unbounded_channel();
         self.named_listeners
             .write()
