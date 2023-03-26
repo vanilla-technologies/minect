@@ -349,13 +349,15 @@ impl MinecraftConnection {
         extract!("data/minect_internal/functions/connect/align_to_chunk.mcfunction")?;
         extract!("data/minect_internal/functions/connect/remove_connector.mcfunction")?;
         extract!("data/minect_internal/functions/enable_logging_initially.mcfunction")?;
-        extract!("data/minect_internal/functions/install.mcfunction")?;
         extract!("data/minect_internal/functions/load.mcfunction")?;
         extract!("data/minect_internal/functions/pulse_redstone.mcfunction")?;
         extract!("data/minect_internal/functions/reload.mcfunction")?;
         extract!("data/minect_internal/functions/reset_logging_finally.mcfunction")?;
         extract!("data/minect_internal/functions/tick.mcfunction")?;
         extract!("data/minect_internal/functions/update.mcfunction")?;
+        extract!("data/minect_internal/functions/v1_uninstall.mcfunction")?;
+        extract!("data/minect_internal/functions/v2_install.mcfunction")?;
+        extract!("data/minect_internal/functions/v2_uninstall.mcfunction")?;
         extract!("data/minect/functions/connect/choose_chunk.mcfunction")?;
         extract!("data/minect/functions/disconnect_self.mcfunction")?;
         extract!("data/minect/functions/disconnect.mcfunction")?;

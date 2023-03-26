@@ -18,11 +18,7 @@
 
 execute as @e[type=area_effect_cloud,tag=minect_connection] run function minect:disconnect_self
 
-scoreboard objectives remove minect_chunk_pos
-scoreboard objectives remove minect_config
-scoreboard objectives remove minect_const
-scoreboard objectives remove minect_entity_pos
-scoreboard objectives remove minect_global
+function minect_internal:v2_uninstall
 
 scoreboard objectives remove minect_version
 datapack disable "file/minect"

@@ -16,14 +16,8 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-execute store result score @s minect_self_pos run data get entity @s Pos[0] 1
-scoreboard players operation @s minect_chunk_pos = @s minect_self_pos
-scoreboard players operation @s minect_self_pos %= 16 minect_const
-scoreboard players operation @s minect_chunk_pos -= @s minect_self_pos
-execute store result entity @s Pos[0] double 1 run scoreboard players get @s minect_chunk_pos
-
-execute store result score @s minect_self_pos run data get entity @s Pos[2] 1
-scoreboard players operation @s minect_chunk_pos = @s minect_self_pos
-scoreboard players operation @s minect_self_pos %= 16 minect_const
-scoreboard players operation @s minect_chunk_pos -= @s minect_self_pos
-execute store result entity @s Pos[2] double 1 run scoreboard players get @s minect_chunk_pos
+scoreboard objectives remove minect_chunk_pos
+scoreboard objectives remove minect_config
+scoreboard objectives remove minect_const
+scoreboard objectives remove minect_self_pos
+scoreboard objectives remove minect_global
