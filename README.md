@@ -1,4 +1,4 @@
-[![Minecraft: Java Edition 1.14.1 - 1.19.3](https://img.shields.io/badge/Minecraft%3A%20Java%20Edition-1.14.1%20--%201.19.3-informational)](https://www.minecraft.net/store/minecraft-java-edition)
+[![Minecraft: Java Edition 1.14.1 - 1.19.4](https://img.shields.io/badge/Minecraft%3A%20Java%20Edition-1.14.1%20--%201.19.4-informational)](https://www.minecraft.net/store/minecraft-java-edition)
 ![Minecraft: Bedrock Edition unsupported](https://img.shields.io/badge/Minecraft%3A%20Bedrock%20Edition-unsupported-critical)\
 [![crates.io](https://img.shields.io/crates/v/minect)](https://crates.io/crates/minect)
 
