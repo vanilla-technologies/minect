@@ -103,7 +103,7 @@ async fn test_query_scoreboard_command() -> io::Result<()> {
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
-    let scoreboard = "minect_test_global";
+    let scoreboard = "minect_test";
     let entity = "@e[type=sheep,tag=minect_test_sheep]";
     let commands = [
         Command::new("say running test_query_scoreboard_command"),
