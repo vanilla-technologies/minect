@@ -17,10 +17,7 @@
 // If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    command::{
-        enable_logging_command, reset_logging_command, summon_named_entity_command, AddTagOutput,
-        SummonNamedEntityOutput,
-    },
+    command::{summon_named_entity_command, AddTagOutput, SummonNamedEntityOutput},
     io::{create_dir_all, io_error, remove_dir, remove_dir_all, write, IoErrorAtPath},
     log::LogEvent,
     on_drop::OnDrop,
@@ -266,14 +263,10 @@ async fn wait_for_connection(connection: &mut MinecraftConnection) -> Result<(),
 
     let events = connection.add_named_listener(LISTENER_NAME);
 
-    connection.execute_commands([
-        Command::new(enable_logging_command()),
-        Command::named(
-            LISTENER_NAME,
-            summon_named_entity_command(&format!("{}success", CONNECT_OUTPUT_PREFIX)),
-        ),
-        Command::new(reset_logging_command()),
-    ])?;
+    connection.execute_commands([Command::named(
+        LISTENER_NAME,
+        summon_named_entity_command(&format!("{}success", CONNECT_OUTPUT_PREFIX)),
+    )])?;
 
     enum Output {
         Success,
