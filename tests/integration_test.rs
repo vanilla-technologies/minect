@@ -1,4 +1,3 @@
-use futures::executor::block_on;
 use log::LevelFilter;
 use minect::{
     command::{
@@ -10,8 +9,8 @@ use minect::{
 };
 use serial_test::serial;
 use simplelog::{Config, SimpleLogger};
-use std::{io, sync::Once, time::Duration};
-use tokio::time::timeout;
+use std::{io, time::Duration};
+use tokio::{sync::OnceCell, time::timeout};
 use tokio_stream::StreamExt;
 
 const TEST_WORLD_DIR: &str = env!("TEST_WORLD_DIR");
@@ -23,24 +22,23 @@ fn new_connection() -> MinecraftConnection {
         .build()
 }
 
-static BEFORE_ALL_TESTS: Once = Once::new();
-
-fn before_all_tests() {
+async fn before_all_tests() {
     SimpleLogger::init(LevelFilter::Trace, Config::default()).unwrap();
 
-    let mut connection = new_connection();
     eprintln!("If you are connecting for the first time please execute /reload in Minecraft.");
-    block_on(connection.connect()).unwrap();
+    let mut connection = new_connection();
+    connection.connect().await.unwrap();
 }
 
-fn before_test() {
-    BEFORE_ALL_TESTS.call_once(|| before_all_tests());
+async fn before_test() {
+    static BEFORE_ALL_TESTS: OnceCell<()> = OnceCell::const_new();
+    BEFORE_ALL_TESTS.get_or_init(before_all_tests).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_add_tag_command() -> io::Result<()> {
-    before_test();
+    before_test().await;
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
@@ -74,7 +72,7 @@ async fn test_add_tag_command() -> io::Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_summon_named_entity_command() -> io::Result<()> {
-    before_test();
+    before_test().await;
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
@@ -101,7 +99,7 @@ async fn test_summon_named_entity_command() -> io::Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_query_scoreboard_command() -> io::Result<()> {
-    before_test();
+    before_test().await;
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
