@@ -26,7 +26,7 @@ use std::{
     io::{BufRead, BufReader, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::{
-        mpsc::{channel, RecvTimeoutError},
+        mpsc::{channel, RecvTimeoutError, Sender},
         Arc, RwLock,
     },
     thread,
@@ -68,7 +68,11 @@ impl LogObserver {
             listeners: listeners.clone(),
             named_listeners: named_listeners.clone(),
         };
-        thread::spawn(|| backend.observe_log());
+        let (initialized_sender, initialized_receiver) = channel();
+        thread::spawn(|| backend.observe_log(initialized_sender));
+        // Wait for the background thread to seek the end of the log file. This is important to
+        // ensure that no events of commands executed after starting the log observer are lost.
+        let _ = initialized_receiver.recv();
 
         LogObserver {
             loaded_listeners,
@@ -124,7 +128,7 @@ struct LogObserverBackend {
     named_listeners: Arc<RwLock<HashMap<String, Vec<UnboundedSender<LogEvent>>>>>,
 }
 impl LogObserverBackend {
-    fn observe_log(self) {
+    fn observe_log(self, initialized_sender: Sender<()>) {
         let (event_sender, event_reciever) = channel();
         let mut watcher = recommended_watcher(event_sender).unwrap(); // may panic
         let watch_path = self.path.parent().unwrap_or(&self.path);
@@ -132,6 +136,9 @@ impl LogObserverBackend {
 
         let mut file = File::open(&self.path).unwrap(); // may panic
         file.seek(SeekFrom::End(0)).unwrap(); // may panic
+
+        let _ = initialized_sender.send(());
+
         let mut reader = BufReader::new(file);
         self.continue_to_read_file(&mut reader);
 
