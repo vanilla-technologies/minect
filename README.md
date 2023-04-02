@@ -24,9 +24,8 @@ let events = connection.add_listener();
 
 connection.execute_commands([
   Command::new("scoreboard objectives add example dummy"),
-  Command::new("scoreboard players set Herobrine example 42"), Command::new(enable_logging_command()),
+  Command::new("scoreboard players set Herobrine example 42"),
   Command::new(query_scoreboard_command("Herobrine", "example")),
-  Command::new(reset_logging_command()),
 ])?;
 
 let output = events
@@ -61,7 +60,7 @@ When executing commands that should log their output the following gamerules mus
 2. `commandBlockOutput`: This must be `true` for command blocks and command block minecarts to broadcast the output of their commands.
 3. `sendCommandFeedback`: This should be set to `false` to prevent the output to also be written to the chat which would likely annoy players.
 
-To make things easy, Minect provides the function `enable_logging_command()` to generate a command that sets these gamerules accordingly and `reset_logging_command()` to reset them to their previous values.
+To make things easy, Minect provides the function `enable_logging_command()` to generate a command that sets these gamerules accordingly and `reset_logging_command()` to reset them to their previous values. By default these two commands are automatically executed before/after all commands passt to `execute_commands`. For full control, this can be disabled when building a `MinecraftConnection`.
 
 ### Datapacks
 

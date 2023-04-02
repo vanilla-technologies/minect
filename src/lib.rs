@@ -44,9 +44,8 @@
 //!
 //! connection.execute_commands([
 //!   Command::new("scoreboard objectives add example dummy"),
-//!   Command::new("scoreboard players set Herobrine example 42"), Command::new(enable_logging_command()),
+//!   Command::new("scoreboard players set Herobrine example 42"),
 //!   Command::new(query_scoreboard_command("Herobrine", "example")),
-//!   Command::new(reset_logging_command()),
 //! ])?;
 //!
 //! let output = events
