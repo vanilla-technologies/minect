@@ -1,4 +1,3 @@
-use log::LevelFilter;
 use minect::{
     command::{
         add_tag_command, enable_logging_command, logged_command, named_logged_command,
@@ -8,13 +7,18 @@ use minect::{
     Command, MinecraftConnection,
 };
 use serial_test::serial;
-use simplelog::{Config, SimpleLogger};
+use simple_logger::SimpleLogger;
 use std::{io, time::Duration};
-use tokio::{sync::OnceCell, time::timeout};
+use tokio::{
+    sync::OnceCell,
+    time::{error::Elapsed, timeout},
+};
 use tokio_stream::StreamExt;
 
 const TEST_WORLD_DIR: &str = env!("TEST_WORLD_DIR");
 const TEST_LOG_FILE: &str = env!("TEST_LOG_FILE");
+const INITIAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(60);
+const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn new_connection() -> MinecraftConnection {
     MinecraftConnection::builder("test", TEST_WORLD_DIR)
@@ -23,14 +27,33 @@ fn new_connection() -> MinecraftConnection {
 }
 
 async fn before_all_tests() {
-    SimpleLogger::init(LevelFilter::Trace, Config::default()).unwrap();
+    SimpleLogger::new().init().unwrap();
 
-    eprintln!("If you are connecting for the first time please execute /reload in Minecraft.");
+    // If this is the first connection to Minecraft we need to reload to activate the minect datapack.
     let mut connection = new_connection();
-    connection.connect().await.unwrap();
+    connection
+        .execute_commands([Command::new("reload")])
+        .unwrap();
+    wait_for_connection(&mut connection).await.unwrap();
 }
 
-async fn before_test() {
+async fn wait_for_connection(
+    connection: &mut MinecraftConnection,
+) -> Result<Option<SummonNamedEntityOutput>, Elapsed> {
+    const INITIAL_CONNECT_ENTITY_NAME: &str = "test_connected";
+    let commands = [Command::new(summon_named_entity_command(
+        INITIAL_CONNECT_ENTITY_NAME,
+    ))];
+    let events = connection.add_listener();
+    let mut events = events
+        .filter_map(|event| event.output.parse::<SummonNamedEntityOutput>().ok())
+        .filter(|output| output.name == INITIAL_CONNECT_ENTITY_NAME);
+    connection.execute_commands(commands).unwrap();
+
+    timeout(INITIAL_CONNECT_TIMEOUT, events.next()).await
+}
+
+async fn before_each_test() {
     static BEFORE_ALL_TESTS: OnceCell<()> = OnceCell::const_new();
     BEFORE_ALL_TESTS.get_or_init(before_all_tests).await;
 }
@@ -38,7 +61,7 @@ async fn before_test() {
 #[tokio::test]
 #[serial]
 async fn test_add_tag_command() -> io::Result<()> {
-    before_test().await;
+    before_each_test().await;
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
@@ -58,9 +81,7 @@ async fn test_add_tag_command() -> io::Result<()> {
     connection.execute_commands(commands)?;
 
     // then:
-    let event = timeout(Duration::from_secs(5), events.next())
-        .await?
-        .unwrap();
+    let event = timeout(TEST_TIMEOUT, events.next()).await?.unwrap();
     let output = event.output.parse::<AddTagOutput>().unwrap();
     assert_eq!(output.tag, tag);
     assert_eq!(output.entity, listener_name);
@@ -72,7 +93,7 @@ async fn test_add_tag_command() -> io::Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_summon_named_entity_command() -> io::Result<()> {
-    before_test().await;
+    before_each_test().await;
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
@@ -87,9 +108,7 @@ async fn test_summon_named_entity_command() -> io::Result<()> {
     connection.execute_commands(commands)?;
 
     // then:
-    let event = timeout(Duration::from_secs(5), events.next())
-        .await?
-        .unwrap();
+    let event = timeout(TEST_TIMEOUT, events.next()).await?.unwrap();
     let output = event.output.parse::<SummonNamedEntityOutput>().unwrap();
     assert_eq!(output.name, name);
 
@@ -99,7 +118,7 @@ async fn test_summon_named_entity_command() -> io::Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_query_scoreboard_command() -> io::Result<()> {
-    before_test().await;
+    before_each_test().await;
     // given:
     let mut connection = new_connection();
     let listener_name = "test";
@@ -123,9 +142,7 @@ async fn test_query_scoreboard_command() -> io::Result<()> {
     connection.execute_commands(commands)?;
 
     // then:
-    let event = timeout(Duration::from_secs(5), events.next())
-        .await?
-        .unwrap();
+    let event = timeout(TEST_TIMEOUT, events.next()).await?.unwrap();
     let output = event.output.parse::<QueryScoreboardOutput>().unwrap();
     assert_eq!(output.scoreboard, scoreboard);
     assert_eq!(output.score, 42);

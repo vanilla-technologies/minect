@@ -1,0 +1,6 @@
+{
+  "pack": {
+    "pack_format": 7,
+    "description": "Datapack to setup Minecraft for continuous integration"
+  }
+}

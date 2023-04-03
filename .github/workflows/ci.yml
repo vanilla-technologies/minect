@@ -1,0 +1,120 @@
+name: Continuous Integration
+
+on:
+  push
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout git repository
+      uses: actions/checkout@v3
+
+    - name: Setup rust cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run cargo check
+      run: cargo check
+
+    - name: Execute unit tests
+      run: cargo test --bins --lib
+
+    - name: Execute doc tests
+      run: cargo test --doc
+
+  integration_test:
+    strategy:
+      matrix:
+        include:
+          - minecraft_version: 1.19.4
+          - minecraft_version: 1.18.2
+          - minecraft_version: 1.17.1
+          - minecraft_version: 1.16.5
+          - minecraft_version: 1.15.2
+          - minecraft_version: 1.14.4
+    name: Integration Test (Minecraft ${{ matrix.minecraft_version }})
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout git repository
+      uses: actions/checkout@v3
+
+    - name: Setup rust cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Setup Minecraft
+      uses: mcenv/setup-minecraft@v2
+      with:
+        version: ${{ matrix.minecraft_version }}
+
+    - name: Configure Minecraft
+      run: |
+        cd minecraft
+
+        echo "eula=true" > eula.txt
+
+        echo "\
+        enable-command-block=true
+        gamemode=creative
+        generate-structures=false
+        level-type=flat
+        online-mode=false
+        " > server.properties
+
+        mkdir -p world/datapacks
+        cp -r ../.github/workflows/setup-minecraft-for-ci world/datapacks
+
+    - name: Setup Screen
+      run: |
+        cd minecraft
+        mkdir screen
+        chmod 700 screen
+
+    - name: Start Minecraft
+      run: |
+        cd minecraft
+        SCREENDIR=screen screen -S minecraft -dm -- $JAVA_HOME_17_X64/bin/java -jar server.jar nogui
+
+    - name: Setup build.env
+      run: |
+        echo "\
+        TEST_WORLD_DIR=minecraft/world
+        TEST_LOG_FILE=minecraft/logs/latest.log
+        " > build.env
+
+    - name: Execute Integration Tests
+      run: cargo test --test '*' -- --test-threads=1
+
+    - name: Stop Minecraft
+      run: |
+        cd minecraft
+        SCREENDIR=screen screen -S minecraft -X stuff 'stop\n'
+
+    - name: Upload Minecraft Log if Failure
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: minecraft-${{ matrix.minecraft_version }}.log
+        path: minecraft/logs/latest.log
