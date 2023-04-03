@@ -345,8 +345,20 @@ impl MinecraftConnection {
 
         extract!("data/minecraft/tags/functions/load.json")?;
         extract!("data/minecraft/tags/functions/tick.json")?;
+        extract!("data/minect_internal/functions/clean_up.mcfunction")?;
         extract!("data/minect_internal/functions/connect/align_to_chunk.mcfunction")?;
         extract!("data/minect_internal/functions/connect/remove_connector.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/clean_up.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/initialize.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/move_and_place_ahead.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/move.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/place_ahead.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/place.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/try_place_facing_east.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/try_place_facing_north.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/try_place_facing_south.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/try_place_facing_west.mcfunction")?;
+        extract!("data/minect_internal/functions/cursor/try_place_facing_z.mcfunction")?;
         extract!("data/minect_internal/functions/enable_logging_initially.mcfunction")?;
         extract!("data/minect_internal/functions/load.mcfunction")?;
         extract!("data/minect_internal/functions/pulse_redstone.mcfunction")?;
@@ -355,12 +367,15 @@ impl MinecraftConnection {
         extract!("data/minect_internal/functions/tick.mcfunction")?;
         extract!("data/minect_internal/functions/update.mcfunction")?;
         extract!("data/minect_internal/functions/v1_uninstall.mcfunction")?;
-        extract!("data/minect_internal/functions/v2_install.mcfunction")?;
         extract!("data/minect_internal/functions/v2_uninstall.mcfunction")?;
+        extract!("data/minect_internal/functions/v3_install.mcfunction")?;
+        extract!("data/minect_internal/functions/v3_uninstall.mcfunction")?;
+        extract!("data/minect_internal/tags/blocks/command_blocks.json")?;
         extract!("data/minect/functions/connect/choose_chunk.mcfunction")?;
         extract!("data/minect/functions/disconnect_self.mcfunction")?;
         extract!("data/minect/functions/disconnect.mcfunction")?;
         extract!("data/minect/functions/enable_logging.mcfunction")?;
+        extract!("data/minect/functions/prepare_logged_block.mcfunction")?;
         extract!("data/minect/functions/reset_logging.mcfunction")?;
         extract!("data/minect/functions/uninstall_completely.mcfunction")?;
         extract!("data/minect/functions/uninstall.mcfunction")?;
@@ -396,8 +411,12 @@ impl MinecraftConnection {
         let id = read_incremented_id(&mut id_file, &id_path)?;
         let next_id = id.wrapping_add(1);
 
-        let (commands, commands_len) =
-            add_implicit_commands(id, commands, self.enable_logging_automatically);
+        let (commands, commands_len) = add_implicit_commands(
+            commands,
+            &self.identifier,
+            id,
+            self.enable_logging_automatically,
+        );
         let structure = generate_structure(&self.identifier, next_id, commands, commands_len);
 
         // To create the structure file as atomically as possible we first write to a temporary file
@@ -622,23 +641,31 @@ fn parse_loaded_output(event: &LogEvent) -> Option<u64> {
 }
 
 fn add_implicit_commands(
-    id: u64,
     commands: impl IntoIterator<IntoIter = impl ExactSizeIterator<Item = Command>>,
+    connection_id: &str,
+    structure_id: u64,
     enable_logging_automatically: bool,
 ) -> (impl Iterator<Item = Command>, usize) {
     let mut first_cmds = Vec::from_iter([
+        Command::new(format!(
+            "tag @e[type=area_effect_cloud,tag=minect_connection,tag=!minect_connection+{}] add minect_inactive",
+            connection_id
+        )),
         Command::new(enable_logging_command()),
         Command::named(
             LOADED_LISTENER_NAME,
-            summon_named_entity_command(&format!("{}{}", STRUCTURE_LOADED_OUTPUT_PREFIX, id)),
+            summon_named_entity_command(&format!(
+                "{}{}",
+                STRUCTURE_LOADED_OUTPUT_PREFIX, structure_id
+            )),
         ),
     ]);
     let mut last_cmds = Vec::new();
     if !enable_logging_automatically {
         first_cmds.push(Command::new(reset_logging_command()));
-    } else {
-        last_cmds.push(Command::new(reset_logging_command()));
+        last_cmds.push(Command::new(enable_logging_command()));
     }
+    last_cmds.push(Command::new("function minect_internal:clean_up"));
 
     let commands = commands.into_iter();
     let commands_len = first_cmds.len() + commands.len();

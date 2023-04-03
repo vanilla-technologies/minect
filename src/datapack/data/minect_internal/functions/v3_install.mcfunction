@@ -16,20 +16,22 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-forceload add ~ ~
-setblock ~ ~ ~ air
-setblock ~ 1 ~ structure_block{name: "minect:-connection_id-/-structure_id-", mode: LOAD}
-setblock ~ 2 ~ redstone_block
+scoreboard players set version minect_version 3
 
-# Protect the activator rail
-setblock ~1 6 ~ stone
-setblock ~-1 6 ~ stone
-setblock ~ 6 ~1 stone
-setblock ~ 6 ~-1 stone
-setblock ~ 7 ~ stone
+scoreboard objectives add minect_chunk_pos dummy
+scoreboard objectives add minect_cursor_x dummy
+scoreboard objectives add minect_cursor_y dummy
+scoreboard objectives add minect_cursor_z dummy
+scoreboard objectives add minect_even_y dummy
+scoreboard objectives add minect_even_z dummy
+scoreboard objectives add minect_global dummy
+scoreboard objectives add minect_self_pos dummy
 
-kill @s
-tellraw @a [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Added connection -connection_id-"}]
+scoreboard objectives add minect_const dummy
+scoreboard players set 2 minect_const 2
+scoreboard players set 16 minect_const 16
 
-# This loads the removal of the connect functions on disk
-schedule function minect_internal:reload 1t
+scoreboard objectives add minect_config dummy
+scoreboard players set update_delay minect_config 1
+
+gamerule commandBlockOutput false

@@ -20,7 +20,7 @@ pub(crate) mod nbt;
 
 use crate::{
     geometry3::{Coordinate3, Direction3},
-    structure::nbt::{PaletteBlock, Structure, StructureBlock},
+    structure::nbt::{PaletteBlock, Structure, StructureBlock, StructureEntity},
 };
 use ::nbt::Value;
 use std::{
@@ -32,6 +32,7 @@ pub(crate) struct StructureBuilder {
     size: Coordinate3<i32>,
     palette: Vec<PaletteBlock>,
     blocks: Vec<StructureBlock>,
+    entities: Vec<StructureEntity>,
 }
 
 impl StructureBuilder {
@@ -40,6 +41,7 @@ impl StructureBuilder {
             size: Coordinate3(0, 0, 0),
             palette: Vec::new(),
             blocks: Vec::new(),
+            entities: Vec::new(),
         }
     }
 
@@ -66,13 +68,24 @@ impl StructureBuilder {
         self.size = Coordinate3::max(self.size, pos + Coordinate3(1, 1, 1));
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn add_entity(&mut self, entity: Entity) {
+        let pos: Vec<f64> = entity.pos.into();
+        let block_pos = pos.iter().map(|it| *it as i32).collect();
+        self.entities.push(StructureEntity {
+            pos,
+            block_pos,
+            nbt: entity.nbt,
+        });
+    }
+
     pub(crate) fn build(self) -> Structure {
         Structure {
             data_version: 2724,
             size: self.size.into(),
             palette: self.palette,
             blocks: self.blocks,
-            entities: Vec::new(),
+            entities: self.entities,
         }
     }
 }
@@ -126,6 +139,7 @@ pub(crate) fn new_command_block(
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandBlockKind {
     Impulse,
@@ -141,4 +155,9 @@ impl CommandBlockKind {
             CommandBlockKind::Repeat => "minecraft:repeating_command_block",
         }
     }
+}
+
+pub(crate) struct Entity {
+    pub(crate) pos: Coordinate3<f64>,
+    pub(crate) nbt: Value,
 }

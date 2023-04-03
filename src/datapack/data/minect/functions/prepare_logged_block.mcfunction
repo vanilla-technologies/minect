@@ -16,20 +16,6 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-forceload add ~ ~
-setblock ~ ~ ~ air
-setblock ~ 1 ~ structure_block{name: "minect:-connection_id-/-structure_id-", mode: LOAD}
-setblock ~ 2 ~ redstone_block
+execute unless entity @e[type=area_effect_cloud,tag=minect_cursor] at @e[type=area_effect_cloud,tag=minect_connection,tag=!minect_inactive,limit=1] run function minect_internal:cursor/initialize
 
-# Protect the activator rail
-setblock ~1 6 ~ stone
-setblock ~-1 6 ~ stone
-setblock ~ 6 ~1 stone
-setblock ~ 6 ~-1 stone
-setblock ~ 7 ~ stone
-
-kill @s
-tellraw @a [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Added connection -connection_id-"}]
-
-# This loads the removal of the connect functions on disk
-schedule function minect_internal:reload 1t
+execute as @e[type=area_effect_cloud,tag=minect_cursor] at @s run function minect_internal:cursor/move_and_place_ahead

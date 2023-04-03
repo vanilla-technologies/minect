@@ -18,7 +18,8 @@
 
 scoreboard objectives add minect_version dummy
 execute if score version minect_version matches 1 run function minect_internal:v1_uninstall
-execute unless score version minect_version matches 2.. run function minect_internal:v2_install
+execute if score version minect_version matches 2 run function minect_internal:v2_uninstall
+execute unless score version minect_version matches 3.. run function minect_internal:v3_install
 
 # TODO: Instead of using function tags we could patch this function. That way there is a bit less clutter that is alphabetically before the functions in the minect namespace.
 scoreboard players set connect_prompt minect_global 1

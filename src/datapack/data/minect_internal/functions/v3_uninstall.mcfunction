@@ -16,20 +16,13 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-forceload add ~ ~
-setblock ~ ~ ~ air
-setblock ~ 1 ~ structure_block{name: "minect:-connection_id-/-structure_id-", mode: LOAD}
-setblock ~ 2 ~ redstone_block
-
-# Protect the activator rail
-setblock ~1 6 ~ stone
-setblock ~-1 6 ~ stone
-setblock ~ 6 ~1 stone
-setblock ~ 6 ~-1 stone
-setblock ~ 7 ~ stone
-
-kill @s
-tellraw @a [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Added connection -connection_id-"}]
-
-# This loads the removal of the connect functions on disk
-schedule function minect_internal:reload 1t
+scoreboard objectives remove minect_chunk_pos
+scoreboard objectives remove minect_config
+scoreboard objectives remove minect_const
+scoreboard objectives remove minect_cursor_x
+scoreboard objectives remove minect_cursor_y
+scoreboard objectives remove minect_cursor_z
+scoreboard objectives remove minect_even_y
+scoreboard objectives remove minect_even_z
+scoreboard objectives remove minect_global
+scoreboard objectives remove minect_self_pos

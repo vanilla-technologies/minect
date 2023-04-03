@@ -31,7 +31,7 @@ walkdir = "2"
 serial_test = "2"
 simple_logger = "4"
 strum = { version = "0.24", features = ["derive"] }
-tokio = { version = "1", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["fs", "macros", "parking_lot", "rt-multi-thread", "time"] }
 
 [build-dependencies]
 walkdir = "2"

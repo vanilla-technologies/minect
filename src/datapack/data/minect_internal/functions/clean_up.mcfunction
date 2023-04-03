@@ -16,20 +16,7 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-forceload add ~ ~
-setblock ~ ~ ~ air
-setblock ~ 1 ~ structure_block{name: "minect:-connection_id-/-structure_id-", mode: LOAD}
-setblock ~ 2 ~ redstone_block
+function minect:reset_logging
+tag @e[type=area_effect_cloud,tag=minect_connection,tag=minect_inactive] remove minect_inactive
 
-# Protect the activator rail
-setblock ~1 6 ~ stone
-setblock ~-1 6 ~ stone
-setblock ~ 6 ~1 stone
-setblock ~ 6 ~-1 stone
-setblock ~ 7 ~ stone
-
-kill @s
-tellraw @a [{"text":""},{"text":"[Info]","color":"blue","hoverEvent":{"action":"show_text","contents":"Minect"}},{"text":" Added connection -connection_id-"}]
-
-# This loads the removal of the connect functions on disk
-schedule function minect_internal:reload 1t
+execute align xyz positioned ~ ~5 ~ positioned ~-15 ~-254 ~-15 at @e[type=area_effect_cloud,tag=minect_connection,dx=16,dy=255,dz=16] positioned ~ ~-5 ~ run fill ~ ~ ~8 ~15 ~254 ~15 stone replace #minect_internal:command_blocks

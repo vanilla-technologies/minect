@@ -24,48 +24,6 @@ use std::{
     str::FromStr,
 };
 
-/// Generates a Minecraft command that schedules the given command to run in such a way that a
-/// [LogEvent](crate::log::LogEvent) is created if logging is enabled at that time (see
-/// [enable_logging_command]).
-///
-/// Commands executed via [execute_commands](crate::MinecraftConnection::execute_commands) can
-/// generate [LogEvent](crate::log::LogEvent)s themselfs, but commands in functions called from
-/// these commands can't without using [logged_command].
-///
-/// To ensure [LogEvent](crate::log::LogEvent)s are created, the first logged command should be
-/// [enable_logging_command] and the last one should be [reset_logging_command]:
-/// ```no_run
-/// # use minect::*;
-/// # use minect::command::*;
-/// let my_function = [
-///     logged_command(enable_logging_command()),
-///     logged_command(query_scoreboard_command("@p", "my_scoreboard")),
-///     logged_command(reset_logging_command()),
-/// ].join("\n");
-///
-/// // Generate datapack containing my_function ...
-///
-/// // Call my_function (could also be done in Minecraft)
-/// # let mut connection = MinecraftConnection::builder("", "").build();
-/// connection.execute_commands([Command::new("function my_namespace:my_function")])?;
-/// # Ok::<(), std::io::Error>(())
-/// ```
-///
-/// The generated command summons a command block minecart that runs the given command. This may
-/// cause a small delay, because command block minecart don't execute very game tick.
-///
-pub fn logged_command(command: impl Into<String>) -> String {
-    LoggedCommandBuilder::new(command).to_string()
-}
-
-/// Same as [logged_command] but also gives the command block minecart a custom name to allow easy
-/// filtering of [LogEvent](crate::log::LogEvent)s with
-/// [MinecraftConnection::add_named_listener](crate::MinecraftConnection::add_named_listener) or
-/// [LogObserver::add_named_listener](crate::log::LogObserver::add_named_listener).
-pub fn named_logged_command(name: &str, command: impl Into<String>) -> String {
-    LoggedCommandBuilder::new(command).name(name).to_string()
-}
-
 /// Generates a command that ensures [LogEvent](crate::log::LogEvent)s are created for all commands
 /// until a [reset_logging_command] is executed. These two commands are executed automatically by
 /// [execute_commands](crate::MinecraftConnection::execute_commands) if
@@ -96,51 +54,119 @@ pub fn reset_logging_command() -> String {
     "function minect:reset_logging".to_string()
 }
 
-/// A builder to generate [logged commands](logged_command()).
-pub struct LoggedCommandBuilder {
-    custom_name: Option<String>,
-    command: String,
+pub fn logged_block_commands(command: &str) -> [String; 2] {
+    [
+        prepare_logged_block_command(),
+        logged_block_command(command),
+    ]
 }
 
-impl LoggedCommandBuilder {
-    /// Creates a new builder to generate a [logged](logged_command()) version of the given command.
-    pub fn new(command: impl Into<String>) -> LoggedCommandBuilder {
-        LoggedCommandBuilder {
-            custom_name: None,
-            command: command.into(),
-        }
-    }
-
-    /// Sets the custom name of the command block minecart to the given JSON text component.
-    pub fn custom_name(mut self, custom_name: impl Into<String>) -> LoggedCommandBuilder {
-        self.custom_name = Some(custom_name.into());
-        self
-    }
-
-    /// Sets the custom name of the command block minecart to the given string.
-    pub fn name(self, name: &str) -> LoggedCommandBuilder {
-        self.custom_name(create_json_text_component(name))
-    }
+pub fn named_logged_block_commands(name: &str, command: &str) -> [String; 2] {
+    [
+        prepare_logged_block_command(),
+        named_logged_block_command(name, command),
+    ]
 }
 
-impl Display for LoggedCommandBuilder {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(
-            "execute at @e[type=area_effect_cloud,tag=minect_connection,limit=1] \
-                run summon command_block_minecart ~ ~ ~ {",
-        )?;
-        if let Some(custom_name) = &self.custom_name {
-            write!(f, "\"CustomName\":\"{}\",", escape_json(custom_name))?;
-        }
-        write!(f, "\"Command\":\"{}\",", escape_json(&self.command))?;
-        f.write_str(
-            "\
+pub fn json_named_logged_block_commands(name: &str, command: &str) -> [String; 2] {
+    [
+        prepare_logged_block_command(),
+        json_named_logged_block_command(name, command),
+    ]
+}
+
+pub fn prepare_logged_block_command() -> String {
+    "function minect:prepare_logged_block".to_string()
+}
+
+const EXECUTE_AT_CURSOR: &str = "execute at @e[type=area_effect_cloud,tag=minect_cursor] run";
+
+pub fn logged_block_command(command: impl AsRef<str>) -> String {
+    format!(
+        "{} data modify block ~ ~ ~ Command set value \"{}\"",
+        EXECUTE_AT_CURSOR,
+        escape_json(command.as_ref()),
+    )
+}
+
+pub fn named_logged_block_command(name: impl AsRef<str>, command: impl AsRef<str>) -> String {
+    json_named_logged_block_command(&create_json_text_component(name.as_ref()), command)
+}
+
+pub fn json_named_logged_block_command(name: impl AsRef<str>, command: impl AsRef<str>) -> String {
+    format!(
+        "{} data modify block ~ ~ ~ {{}} merge value {{CustomName:\"{}\",Command:\"{}\"}}",
+        EXECUTE_AT_CURSOR,
+        escape_json(name.as_ref()),
+        escape_json(command.as_ref()),
+    )
+}
+
+/// Generates a Minecraft command that schedules the given command to run in such a way that a
+/// [LogEvent](crate::log::LogEvent) is created if logging is enabled at that time (see
+/// [enable_logging_command]).
+///
+/// Commands executed via [execute_commands](crate::MinecraftConnection::execute_commands) can
+/// generate [LogEvent](crate::log::LogEvent)s themselfs, but commands in functions called from
+/// these commands can't without using [logged_command].
+///
+/// To ensure [LogEvent](crate::log::LogEvent)s are created, the first logged command should be
+/// [enable_logging_command] and the last one should be [reset_logging_command]:
+/// ```no_run
+/// # use minect::*;
+/// # use minect::command::*;
+/// let my_function = [
+///     logged_command(enable_logging_command()),
+///     logged_command(query_scoreboard_command("@p", "my_scoreboard")),
+///     logged_command(reset_logging_command()),
+/// ].join("\n");
+///
+/// // Generate datapack containing my_function ...
+///
+/// // Call my_function (could also be done in Minecraft)
+/// # let mut connection = MinecraftConnection::builder("", "").build();
+/// connection.execute_commands([Command::new("function my_namespace:my_function")])?;
+/// # Ok::<(), std::io::Error>(())
+/// ```
+///
+/// The generated command summons a command block minecart that runs the given command. This may
+/// cause a small delay, because command block minecart don't execute very game tick.
+///
+pub fn logged_cart_command(command: impl AsRef<str>) -> String {
+    build_logged_cart_command(None, command.as_ref())
+}
+
+/// Same as [logged_command] but also gives the command block minecart a custom name to allow easy
+/// filtering of [LogEvent](crate::log::LogEvent)s with
+/// [MinecraftConnection::add_named_listener](crate::MinecraftConnection::add_named_listener) or
+/// [LogObserver::add_named_listener](crate::log::LogObserver::add_named_listener).
+pub fn named_logged_cart_command(name: impl AsRef<str>, command: impl AsRef<str>) -> String {
+    json_named_logged_cart_command(&create_json_text_component(name.as_ref()), command)
+}
+
+pub fn json_named_logged_cart_command(name: impl AsRef<str>, command: impl AsRef<str>) -> String {
+    build_logged_cart_command(Some(name.as_ref()), command.as_ref())
+}
+
+fn build_logged_cart_command(name: Option<&str>, command: &str) -> String {
+    let custom_name_entry = if let Some(name) = name {
+        format!("\"CustomName\":\"{}\",", escape_json(name))
+    } else {
+        "".to_string()
+    };
+
+    format!(
+        "execute at @e[type=area_effect_cloud,tag=minect_connection,limit=1] run \
+        summon command_block_minecart ~ ~ ~ {{\
+            {}\
+            \"Command\":\"{}\",\
             \"Tags\":[\"minect_impulse\"],\
             \"LastExecution\":1L,\
             \"TrackOutput\":false,\
-        }",
-        )
-    }
+        }}",
+        custom_name_entry,
+        escape_json(command),
+    )
 }
 
 /// Generates a Minecraft command that summons an area effect cloud with the given `name`.
@@ -331,3 +357,6 @@ impl Display for QueryScoreboardOutput {
         )
     }
 }
+
+#[cfg(test)]
+mod tests;

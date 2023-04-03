@@ -44,10 +44,10 @@ pub(crate) fn generate_structure(
     builder.build()
 }
 
-fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
+fn generate_basic_structure(connection_id: &str, next_structure_id: u64) -> Vec<Block> {
     Vec::from_iter([
         new_structure_block(
-            format!("{}:{}/{}", NAMESPACE, identifier, next_id),
+            format!("{}:{}/{}", NAMESPACE, connection_id, next_structure_id),
             "LOAD".to_string(),
             Coordinate3(0, 0, 0),
         ),
@@ -58,16 +58,28 @@ fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
             nbt: None,
         },
         new_structure_block(
-            format!("{}:{}/{}", NAMESPACE, identifier, next_id),
+            format!("{}:{}/{}", NAMESPACE, connection_id, next_structure_id),
             "CORNER".to_string(),
             Coordinate3(0, 2, 0),
         ),
-        Block {
-            name: "minecraft:stone".to_string(),
-            pos: Coordinate3(0, 3, 0),
-            properties: BTreeMap::new(),
-            nbt: None,
-        },
+        // We replace the repeating command block of the previous structure with an impulse command
+        // block to reset it's execution ordering. This way it is executed after the regular command
+        // blocks (because it has a greater Y coordinate) and can execute the logged block commands
+        // that were registered in the same tick. It then replaces itself with a repeating command
+        // block that refreshes the connection entity and triggers logged command blocks registered
+        // from scheduled functions.
+        new_command_block(
+            CommandBlockKind::Impulse,
+            None,
+            format!(
+                "setblock ~ ~ ~ repeating_command_block[facing=east]{{Command:\"{}\",auto:true}}",
+                escape_json(&summon_connection_entity_command(connection_id))
+            ),
+            false,
+            true,
+            Direction3::East,
+            Coordinate3(0, 3, 0),
+        ),
         Block {
             name: "minecraft:redstone_block".to_string(),
             pos: Coordinate3(0, 4, 0),
@@ -80,41 +92,38 @@ fn generate_basic_structure(identifier: &str, next_id: u64) -> Vec<Block> {
             properties: BTreeMap::new(),
             nbt: None,
         },
-        new_command_block(
-            CommandBlockKind::Repeat,
-            None,
-            format!(
-                "execute \
-                positioned ~ ~-1 ~ \
-                align xyz \
-                unless entity @e[\
-                    type=area_effect_cloud,\
-                    dx=1,dy=1,dz=1,\
-                    tag=minect_connection,tag=minect_connection+{connection_id}\
-                ] \
-                run \
-                summon area_effect_cloud ~.5 ~.5 ~.5 {{\
-                    Duration:2147483647,\
-                    CustomName:\"{custom_name}\",\
-                    Tags:[minect_connection,minect_connection+{connection_id}]\
-                }}",
-                connection_id = identifier,
-                custom_name = escape_json(&create_json_text_component(identifier)),
-            ),
-            false,
-            true,
-            Direction3::Down,
-            Coordinate3(0, 6, 0),
-        ),
     ])
 }
 
-const CMD_BLOCK_OFFSET: Coordinate3<i32> = Coordinate3(0, 0, 1);
+fn summon_connection_entity_command(connection_id: &str) -> String {
+    format!(
+        "execute \
+        positioned ~ ~2 ~ \
+        align xyz \
+        unless entity @e[\
+            type=area_effect_cloud,\
+            dx=1,dy=1,dz=1,\
+            tag=minect_connection,tag=minect_connection+{connection_id}\
+        ] \
+        run \
+        summon area_effect_cloud ~.5 ~.5 ~.5 {{\
+            Duration:2147483647,\
+            CustomName:\"{custom_name}\",\
+            Tags:[minect_connection,minect_connection+{connection_id}]\
+        }}",
+        connection_id = connection_id,
+        custom_name = escape_json(&create_json_text_component(connection_id)),
+    )
+}
+
+const CMD_BLOCK_OFFSET: Coordinate3<i32> = Coordinate3(0, 0, 8);
 /// Minecraft limits the number of blocks that can be targeted by a fill command (which we use to
-/// clean up) to 32768. X is limited to 16 and Z to 15 to stay in the chunk. The Y limit is
-/// therefor calculated as: floor(32768 / 16 / 15) = 136
-/// This is also hardcoded in the installer to show an appropriate bounding box.
-const MAX_SIZE: Coordinate3<i32> = Coordinate3(16, 136, 15);
+/// clean up) to 32768. X is limited to 16 and Z to 8 to stay in the chunk. The Y limit is
+/// therefore calculated as: floor(32768 / 8 / 16) = 256.
+/// Additionally there is a height limit in Minecraft before 1.18 of 256. Because we start at Y=1
+/// (to avoid a hole in the bedrock layer) our height limit is 255.
+/// The size is also hardcoded in the clean_up functions.
+const MAX_SIZE: Coordinate3<i32> = Coordinate3(16, 255, 8);
 const MAX_LEN: usize = MAX_SIZE.0 as usize * MAX_SIZE.1 as usize * MAX_SIZE.2 as usize;
 
 fn generate_command_blocks(
@@ -139,72 +148,36 @@ fn generate_command_blocks(
         )
     });
 
-    let mut cmd_blocks = commands
+    commands
         .zip(curve)
         .map(|(command, (coordinate, direction))| CommandBlock {
             command,
             coordinate,
             direction,
         })
-        .collect::<Vec<_>>();
-
-    if let Some(cmd_block) = get_clean_up_cmd_block(&cmd_blocks) {
-        cmd_blocks.push(cmd_block);
-    }
-
-    cmd_blocks.into_iter().map(|cmd_block| {
-        let first = cmd_block.coordinate == Coordinate3(0, 0, 0);
-        let kind = if first {
-            CommandBlockKind::Impulse
-        } else {
-            CommandBlockKind::Chain
-        };
-        new_command_block(
-            kind,
-            cmd_block.command.get_name_as_json(),
-            cmd_block.command.command,
-            false,
-            true,
-            cmd_block.direction,
-            cmd_block.coordinate + CMD_BLOCK_OFFSET,
-        )
-    })
+        .map(|cmd_block| {
+            let first = cmd_block.coordinate == Coordinate3(0, 0, 0);
+            let kind = if first {
+                CommandBlockKind::Impulse
+            } else {
+                CommandBlockKind::Chain
+            };
+            new_command_block(
+                kind,
+                cmd_block.command.get_name_as_json(),
+                cmd_block.command.command,
+                false,
+                true,
+                cmd_block.direction,
+                cmd_block.coordinate + CMD_BLOCK_OFFSET,
+            )
+        })
 }
 
 pub(crate) struct CommandBlock {
     pub(crate) command: Command,
     pub(crate) coordinate: Coordinate3<i32>,
     pub(crate) direction: Direction3,
-}
-
-fn get_clean_up_cmd_block(cmd_blocks: &[CommandBlock]) -> Option<CommandBlock> {
-    let (last_coordinate, last_direction) = cmd_blocks
-        .last()
-        .map(|cmd_block| (cmd_block.coordinate, cmd_block.direction))?;
-
-    let mut coordinate = last_coordinate;
-    coordinate[last_direction.axis()] += last_direction.signum() as i32;
-
-    let max_coordinate = cmd_blocks.iter().fold(coordinate, |coordinate, block| {
-        Coordinate3::max(coordinate, block.coordinate)
-    });
-
-    let relative_min = -coordinate;
-    let relative_max = relative_min + max_coordinate;
-    let command = Command::new(format!(
-        "fill ~{} ~{} ~{} ~{} ~{} ~{} air",
-        relative_min.0,
-        relative_min.1,
-        relative_min.2,
-        relative_max.0,
-        relative_max.1,
-        relative_max.2
-    ));
-    Some(CommandBlock {
-        command,
-        coordinate,
-        direction: -last_direction,
-    })
 }
 
 /// An [Iterator] producing a space filling curve with a zig zag pattern in the form of a cuboid.
