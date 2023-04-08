@@ -25,13 +25,9 @@ use std::{fmt::Display, str::FromStr};
 
 /// A [LogEvent] is created for every command that is successfully executed and logged.
 ///
-/// Commands are logged if logging is enabled (see
-/// [enable_logging_command](crate::command::enable_logging_command)) and the command is executed by
-/// a player, command block or command block minecart. Commands in functions are never logged. To
-/// work around this use [logged_command](crate::command::logged_command).
-///
-/// The module [command](crate::command) contains functions to generate common commands that produce
-/// useful [LogEvent]s.
+/// There are a few preconditions for commands to write their output to the log file. They are
+/// documented on the [command](crate::command) module in detail. That module also contains
+/// functions to generate common commands that produce useful [LogEvent]s.
 ///
 /// This is what a [LogEvent] looks like in Minecrafts log file:
 /// ```none
