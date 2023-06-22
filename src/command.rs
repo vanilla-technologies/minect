@@ -233,7 +233,7 @@ pub fn json_named_logged_cart_command(name: impl AsRef<str>, command: impl AsRef
 
 fn build_logged_cart_command(name: Option<&str>, command: &str) -> String {
     let custom_name_entry = if let Some(name) = name {
-        format!("\"CustomName\":\"{}\",", escape_json(name))
+        format!("CustomName:\"{}\",", escape_json(name))
     } else {
         "".to_string()
     };
@@ -242,10 +242,10 @@ fn build_logged_cart_command(name: Option<&str>, command: &str) -> String {
         "execute at @e[type=area_effect_cloud,tag=minect_connection,limit=1] run \
         summon command_block_minecart ~ ~ ~ {{\
             {}\
-            \"Command\":\"{}\",\
-            \"Tags\":[\"minect_impulse\"],\
-            \"LastExecution\":1L,\
-            \"TrackOutput\":false,\
+            Command:\"{}\",\
+            Tags:[minect,minect_impulse],\
+            LastExecution:1L,\
+            TrackOutput:false,\
         }}",
         custom_name_entry,
         escape_json(command),

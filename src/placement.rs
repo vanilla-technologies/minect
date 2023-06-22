@@ -109,7 +109,7 @@ fn summon_connection_entity_command(connection_id: &str) -> String {
         summon area_effect_cloud ~.5 ~.5 ~.5 {{\
             Duration:2147483647,\
             CustomName:\"{custom_name}\",\
-            Tags:[minect_connection,minect_connection+{connection_id}]\
+            Tags:[minect,minect_connection,minect_connection+{connection_id}]\
         }}",
         connection_id = connection_id,
         custom_name = escape_json(&create_json_text_component(connection_id)),

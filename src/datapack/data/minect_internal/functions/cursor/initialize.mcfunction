@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-execute positioned ~1 ~-2 ~ run summon area_effect_cloud ~ ~ ~ {Tags: [minect_cursor]}
+execute positioned ~1 ~-2 ~ run summon area_effect_cloud ~ ~ ~ {Tags: [minect, minect_cursor]}
 scoreboard players add @e[type=area_effect_cloud,tag=minect_cursor] minect_cursor_x 1
 setblock ~1 ~-2 ~ chain_command_block[facing=east]{Command: "function minect:enable_logging", auto: true}
 setblock ~2 ~-2 ~ chain_command_block[facing=east]{auto: true}

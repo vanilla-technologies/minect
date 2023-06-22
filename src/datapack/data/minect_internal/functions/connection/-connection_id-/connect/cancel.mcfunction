@@ -19,7 +19,7 @@
 execute as @e[type=area_effect_cloud,tag=minect_connector+-connection_id-] run function minect_internal:connect/remove_connector
 setblock ~ ~ ~ redstone_block
 setblock ~ ~1 ~ activator_rail
-execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {Command: "function minect:enable_logging", Tags: [minect_connect_canceller], TrackOutput: false}
-execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {CustomName: '{"text":"minect_connect"}', Command: "tag @s add minect_connect_cancelled", Tags: [minect_connect_canceller], TrackOutput: false}
-execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {Command: "function minect:reset_logging", Tags: [minect_connect_canceller], TrackOutput: false}
-execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {Command: "function minect_internal:connection/-connection_id-/connect/cancel_cleanup", Tags: [minect_connect_canceller], TrackOutput: false}
+execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {Command: "function minect:enable_logging", Tags: [minect, minect_connect_canceller], TrackOutput: false}
+execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {CustomName: '{"text":"minect_connect"}', Command: "tag @s add minect_connect_cancelled", Tags: [minect, minect_connect_canceller], TrackOutput: false}
+execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {Command: "function minect:reset_logging", Tags: [minect, minect_connect_canceller], TrackOutput: false}
+execute align xyz run summon command_block_minecart ~.5 ~1 ~.5 {Command: "function minect_internal:connection/-connection_id-/connect/cancel_cleanup", Tags: [minect, minect_connect_canceller], TrackOutput: false}

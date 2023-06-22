@@ -17,7 +17,7 @@
 # If not, see <http://www.gnu.org/licenses/>.
 
 execute as @e[type=area_effect_cloud,tag=minect_connector+-connection_id-] run function minect_internal:connect/remove_connector
-summon area_effect_cloud ~ ~ ~ {Duration: 2147483647, Tags: [minect_connector+-connection_id-]}
+summon area_effect_cloud ~ ~ ~ {Duration: 2147483647, Tags: [minect, minect_connector+-connection_id-]}
 execute as @e[type=area_effect_cloud,tag=minect_connector+-connection_id-] run function minect_internal:connect/align_to_chunk
 
 execute at @e[type=area_effect_cloud,tag=minect_connector+-connection_id-] run setblock ~ ~ ~ structure_block{mode: LOAD, showboundingbox: true, sizeX: 16, sizeY: 48, sizeZ: 16}
