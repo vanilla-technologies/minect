@@ -61,20 +61,21 @@ When executing commands that should log their output the following gamerules mus
 2. `commandBlockOutput`: This must be `true` for command blocks and command block minecarts to broadcast the output of their commands.
 3. `sendCommandFeedback`: This should be set to `false` to prevent the output to also be written to the chat which would likely annoy players.
 
-To make things easy, Minect provides the function `enable_logging_command()` to generate a command that sets these gamerules accordingly and `reset_logging_command()` to reset them to their previous values. By default these two commands are automatically executed before/after all commands passt to `execute_commands`. For full control, this can be disabled when building a `MinecraftConnection`.
+To make things easy, Minect provides the function `enable_logging_command()` to generate a command that sets these gamerules accordingly and `reset_logging_command()` to reset them to their previous values. By default these two commands are automatically executed before/after all commands passed to `execute_commands`. For full control, this can be disabled when building a `MinecraftConnection`.
 
 ### Datapacks
 
-The output of commands in a datapack (in mcfunction files) are never logged, even if the above mentioned gamerules are set correctly. To get around this Minect provides the function `logged_command()`. This function takes a command and generates a command that summons a command block minecart with the given command. This way the given command is executed delayed by the command block minecart, so it's outputs can be logged.
+//! Minect offers two ways to work around the limitation of `mcfunction` files. To log the output of
+//! a command from a `mcfunction` file you can either use [logged_block_commands] or a
+//! [logged_cart_command].
 
-Please note that you still need to enable logging. For proper ordering this also has to happen delayed in a command block minecart:
+The output of commands in a datapack (in mcfunction files) are never logged, even if the above mentioned gamerules are set correctly. Minect provides two ways to work around this limitation: you can use the function `logged_block_commands(command)` to spawns a command block or the function `logged_cart_command(command)` to spawn a command block minecart, which will then execute the supplied command. The command is executed with a slight delay after the datapack function finishes.
 
 ```rust
-let my_function = [
-    logged_command(enable_logging_command()),
-    logged_command(query_scoreboard_command("@p", "my_scoreboard")),
-    logged_command(reset_logging_command()),
-].join("\n");
+let mut commands = Vec::new();
+commands.push("say querying scoreboard ...".to_string());
+commands.extend(logged_block_commands(query_scoreboard_command("@p", "my_scoreboard")));
+let my_function = commands.join("\n");
 
 // Generate datapack containing my_function ...
 

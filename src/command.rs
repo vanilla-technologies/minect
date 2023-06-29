@@ -109,6 +109,24 @@ pub fn reset_logging_command() -> String {
 /// When the command block executes, the gamerules will be set appropriately for logging. So there
 /// is no need to execute an [enable_logging_command] and a [reset_logging_command].
 ///
+/// # Example
+///
+/// ```no_run
+/// # use minect::*;
+/// # use minect::command::*;
+/// let mut commands = Vec::new();
+/// commands.push("say querying scoreboard ...".to_string());
+/// commands.extend(logged_block_commands(query_scoreboard_command("@p", "my_scoreboard")));
+/// let my_function = commands.join("\n");
+///
+/// // Generate datapack containing my_function ...
+///
+/// // Call my_function (could also be done in Minecraft)
+/// # let mut connection = MinecraftConnection::builder("", "").build();
+/// connection.execute_commands([Command::new("function my_namespace:my_function")])?;
+/// # Ok::<(), std::io::Error>(())
+/// ```
+///
 /// # Timing
 ///
 /// The command block executes delayed, but it is guaranteed to execute within the same gametick as
@@ -122,7 +140,7 @@ pub fn reset_logging_command() -> String {
 /// limited to:
 /// * The `mcfunction` is executed by the function tag `#minecraft:tick`.
 /// * The `mcfunction` is executed by a custom command block.
-pub fn logged_block_commands(command: &str) -> [String; 2] {
+pub fn logged_block_commands(command: impl AsRef<str>) -> [String; 2] {
     [
         prepare_logged_block_command(),
         logged_block_command(command),
@@ -133,7 +151,7 @@ pub fn logged_block_commands(command: &str) -> [String; 2] {
 /// easy filtering of [LogEvent](crate::log::LogEvent)s with
 /// [MinecraftConnection::add_named_listener](crate::MinecraftConnection::add_named_listener) or
 /// [LogObserver::add_named_listener](crate::log::LogObserver::add_named_listener).
-pub fn named_logged_block_commands(name: &str, command: &str) -> [String; 2] {
+pub fn named_logged_block_commands(name: impl AsRef<str>, command: impl AsRef<str>) -> [String; 2] {
     [
         prepare_logged_block_command(),
         named_logged_block_command(name, command),
@@ -142,7 +160,10 @@ pub fn named_logged_block_commands(name: &str, command: &str) -> [String; 2] {
 
 /// The same as [named_logged_block_commands], but the name of the command block is given as a JSON
 /// text component.
-pub fn json_named_logged_block_commands(name: &str, command: &str) -> [String; 2] {
+pub fn json_named_logged_block_commands(
+    name: impl AsRef<str>,
+    command: impl AsRef<str>,
+) -> [String; 2] {
     [
         prepare_logged_block_command(),
         json_named_logged_block_command(name, command),
