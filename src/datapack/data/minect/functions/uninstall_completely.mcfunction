@@ -18,7 +18,7 @@
 
 execute as @e[type=area_effect_cloud,tag=minect_connection] run function minect:disconnect_self
 
-function minect_internal:v2_uninstall
+function minect_internal:v3_uninstall
 
 scoreboard objectives remove minect_version
 datapack disable "file/minect"

@@ -367,6 +367,7 @@ impl MinecraftConnection {
         extract!("data/minect_internal/functions/tick.mcfunction")?;
         extract!("data/minect_internal/functions/update.mcfunction")?;
         extract!("data/minect_internal/functions/v1_uninstall.mcfunction")?;
+        extract!("data/minect_internal/functions/v2_migrate.mcfunction")?;
         extract!("data/minect_internal/functions/v2_uninstall.mcfunction")?;
         extract!("data/minect_internal/functions/v3_install.mcfunction")?;
         extract!("data/minect_internal/functions/v3_uninstall.mcfunction")?;

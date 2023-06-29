@@ -60,7 +60,7 @@ impl<T: Ord> Coordinate3<T> {
 
 impl<T: Clone + Neg<Output = T>> Coordinate3<T> {
     pub(crate) fn get_in_direction(&self, direction: Direction3) -> T {
-        let raw = self[(direction.axis())].clone();
+        let raw = self[direction.axis()].clone();
         if direction.is_negative() {
             -raw
         } else {

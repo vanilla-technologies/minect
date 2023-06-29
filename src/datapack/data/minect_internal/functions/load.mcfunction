@@ -18,6 +18,7 @@
 
 scoreboard objectives add minect_version dummy
 execute if score version minect_version matches 1 run function minect_internal:v1_uninstall
+execute if score version minect_version matches 2 as @e[type=area_effect_cloud,tag=minect_connection] at @s run function minect_internal:v2_migrate
 execute if score version minect_version matches 2 run function minect_internal:v2_uninstall
 execute unless score version minect_version matches 3.. run function minect_internal:v3_install
 

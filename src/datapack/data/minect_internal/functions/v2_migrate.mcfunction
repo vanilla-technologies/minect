@@ -16,23 +16,7 @@
 # You should have received a copy of the GNU General Public License along with Minect.
 # If not, see <http://www.gnu.org/licenses/>.
 
-scoreboard players set version minect_version 3
-
-scoreboard objectives add minect_chunk_pos dummy
-scoreboard objectives add minect_cursor_x dummy
-scoreboard objectives add minect_cursor_y dummy
-scoreboard objectives add minect_cursor_z dummy
-scoreboard objectives add minect_even_y dummy
-scoreboard objectives add minect_even_z dummy
-scoreboard objectives add minect_global dummy
-scoreboard objectives add minect_self_pos dummy
-
-scoreboard objectives add minect_const dummy
-scoreboard players set 2 minect_const 2
-scoreboard players set 16 minect_const 16
-
-scoreboard objectives add minect_config dummy
-scoreboard players set update_delay minect_config 1
-
-gamerule commandBlockOutput false
-gamerule sendCommandFeedback true
+clone ~ ~-5 ~ ~ ~ ~ ~ 1 ~ masked move
+setblock ~ ~1 ~ air
+teleport @s ~ 6 ~
+tag @s add minect
