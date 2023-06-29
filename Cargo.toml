@@ -17,9 +17,9 @@ encoding_rs = "0.8"
 fs3 = "0.5"
 futures = "0.3"
 hematite-nbt = "0.5"
-indexmap = { version = "1", features = ["serde"] }
+indexmap = { version = "2", features = ["serde"] }
 log = "0.4"
-notify = "5"
+notify = "6"
 num-traits = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -30,8 +30,14 @@ walkdir = "2"
 [dev-dependencies]
 serial_test = "2"
 simple_logger = "4"
-strum = { version = "0.24", features = ["derive"] }
-tokio = { version = "1", features = ["fs", "macros", "parking_lot", "rt-multi-thread", "time"] }
+strum = { version = "0.25", features = ["derive"] }
+tokio = { version = "1", features = [
+  "fs",
+  "macros",
+  "parking_lot",
+  "rt-multi-thread",
+  "time",
+] }
 
 [build-dependencies]
 walkdir = "2"
