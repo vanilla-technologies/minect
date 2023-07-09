@@ -65,11 +65,7 @@ To make things easy, Minect provides the function `enable_logging_command()` to 
 
 ### Datapacks
 
-//! Minect offers two ways to work around the limitation of `mcfunction` files. To log the output of
-//! a command from a `mcfunction` file you can either use [logged_block_commands] or a
-//! [logged_cart_command].
-
-The output of commands in a datapack (in mcfunction files) are never logged, even if the above mentioned gamerules are set correctly. Minect provides two ways to work around this limitation: you can use the function `logged_block_commands(command)` to spawns a command block or the function `logged_cart_command(command)` to spawn a command block minecart, which will then execute the supplied command. The command is executed with a slight delay after the datapack function finishes.
+The output of commands in a datapack (in mcfunction files) is never logged, even if the above mentioned gamerules are set correctly. Minect provides two ways to work around this limitation: you can use the function `logged_block_commands(command)` to spawn a command block or the function `logged_cart_command(command)` to spawn a command block minecart, which will then execute the supplied command. The command is executed with a slight delay after the datapack function finishes.
 
 ```rust
 let mut commands = Vec::new();
